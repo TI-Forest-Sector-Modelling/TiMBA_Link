@@ -138,44 +138,48 @@ class AggregateGFPMptResults(object):
         5. step: Aggregate GFPMpt-data for prices as weighted prices using aggregated values and production.
         :return pd.DataFrame: Aggregated and weighted price data to DART-BIO-level (region and sector)
         """
-        self.Logger.info(f"Aggregate GFPMpt-data for price to DART-BIO-level (region and sector).")
-        price_data = self.gfpmpt_data.groupby(["RegionCode", "CommodityCode", "Year"]
-                                              )["price"].sum().reset_index()
-        production_data = self.gfpmpt_data.groupby(["RegionCode", "CommodityCode", "Year"]
-                                                   )["quantity"].sum().reset_index()
+        self.Logger.info(f'Aggregate GFPMpt-data for price to {self.linked_CGE} (region and sector).')
+        production_data = self.gfpmpt_data['data_periods']
+        production_data = production_data[(production_data['domain'] == 'Supply') |
+                                          (production_data['domain'] == 'ManufactureCost')]
 
-        price_data = price_data.merge(self.region_key, left_on="RegionCode", right_on="GFPM_CountryCode",
-                                      how="left").dropna()
-        production_data = production_data.merge(self.region_key, left_on="RegionCode", right_on="GFPM_CountryCode",
-                                                how="left").dropna()
+        price_data = production_data.groupby(['RegionCode', 'CommodityCode', 'year'])['price'].sum().reset_index()
+        production_data = production_data.groupby(['RegionCode', 'CommodityCode', 'year']
+                                                  )['quantity'].sum().reset_index()
 
-        value_data = pd.concat([production_data[["RegionCode", "CommodityCode", "Year", "DART-BIO-Region"]],
-                                pd.DataFrame(production_data["quantity"] * price_data["price"])],
-                               axis=1).rename(columns={0: "value"})
+        price_data = price_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
+                                      how='left').dropna()
+        production_data = production_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
+                                                how='left').dropna()
 
-        region_production_data = production_data.groupby(["DART-BIO-Region", "CommodityCode", "Year"
-                                                          ])["quantity"].sum().reset_index()
-        region_value_data = value_data.groupby(["DART-BIO-Region", "CommodityCode", "Year"
-                                                ])["value"].sum().reset_index()
+        value_data = pd.concat([production_data[['RegionCode', 'CommodityCode', 'year',
+                                                 f'{self.linked_CGE}_{self.project}']],
+                                pd.DataFrame(production_data['quantity'] * price_data['price'])],
+                               axis=1).rename(columns={0: 'value'})
 
-        region_production_data = region_production_data.merge(self.commodity_key, left_on="CommodityCode",
-                                                              right_on="GFPMpt_Comcode",
-                                                              how="left")
+        region_production_data = production_data.groupby([f'{self.linked_CGE}_{self.project}', 'CommodityCode', 'year'
+                                                          ])['quantity'].sum().reset_index()
+        region_value_data = value_data.groupby([f'{self.linked_CGE}_{self.project}', 'CommodityCode', 'year'
+                                                ])['value'].sum().reset_index()
 
-        region_value_data = region_value_data.merge(self.commodity_key, left_on="CommodityCode",
-                                                    right_on="GFPMpt_Comcode",
-                                                    how="left")
+        region_production_data = region_production_data.merge(self.commodity_key, left_on='CommodityCode',
+                                                              right_on='GFPMpt_Comcode',
+                                                              how='left')
 
-        sector_value_data = region_value_data.groupby(["DART-BIO-Region", "DART-BIO-Sector", "Year"
-                                                       ])["value"].sum().reset_index()
-        sector_production_data = region_production_data.groupby(["DART-BIO-Region", "DART-BIO-Sector", "Year"]
-                                                                )["quantity"].sum().reset_index()
+        region_value_data = region_value_data.merge(self.commodity_key, left_on='CommodityCode',
+                                                    right_on='GFPMpt_Comcode',
+                                                    how='left')
 
-        sector_price_data = pd.DataFrame(sector_value_data["value"] / sector_production_data["quantity"]).rename(
-            columns={0: "price"})
+        sector_value_data = region_value_data.groupby([f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', 'year'
+                                                       ])['value'].sum().reset_index()
+        sector_production_data = region_production_data.groupby([f'{self.linked_CGE}_{self.project}', 'GTAP-Sector',
+                                                                 'year'])['quantity'].sum().reset_index()
 
-        sector_price_data = pd.concat([sector_production_data[["DART-BIO-Region", "DART-BIO-Sector", "Year"]],
-                                       sector_price_data], axis=1)
+        sector_price_data = pd.DataFrame(sector_value_data['value'] / sector_production_data['quantity']).rename(
+            columns={0: 'price'})
+
+        sector_price_data = pd.concat([sector_production_data[[f'{self.linked_CGE}_{self.project}', 'GTAP-Sector',
+                                                               'year']], sector_price_data], axis=1)
 
         return sector_price_data
 
