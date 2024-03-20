@@ -239,93 +239,91 @@ class AggregateGFPMptResults(object):
 
         return reformated_data
 
-    def calc_growth_rate(self, target_data, start_year: int, end_year: int, flag_no_intermediate_periods: bool):
+    def calc_growth_rate(self, target_data, start_year: int, end_year: int, link_type: bool):
         """
         Caluclate growth rate for target_data considering start_year and end_year.
         :param target_data: Data for which growth rates will be calculated
         :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
         :param end_year: Year until which growth rates will be calculated
-        :param flag_no_intermediate_periods: flag allowing to chose if growth rates will be calculated for each period
+        :param link_type: flag allowing to chose if growth rates will be calculated for each period
         between start_year and end_year (flag = False) or solely considering start_year and end_year (flag = True).
         For the linkage DART-BIO-GFPMpt only the final value (in 2030) is linked. Therefore flag has to be True
         :return pd.DataFrame: Growth rates for target_data with chosen options
         """
-        self.Logger.info(f"Calculate growth rate {target_data}.")
-        growth_rate = target_data[["DART-BIO-Region", "DART-BIO-Sector", start_year]]
-        if flag_no_intermediate_periods:
+        self.Logger.info(f'Calculate growth rate {target_data}.')
+        growth_rate = target_data[[f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', start_year]]
+        if link_type == 'end_point':
             temp_growth_rate = pd.DataFrame((target_data[end_year] - target_data[start_year]) /
                                             target_data[start_year]).rename(columns={0: end_year})
             growth_rate = pd.concat([growth_rate, temp_growth_rate], axis=1)
 
-        else:
+        if link_type == 'continous':
             year = start_year
             for key in self.exogenous_change_structure.keys():
                 previous_year = year
-                year += self.exogenous_change_structure[key]
+                year += self.exogenous_change_structure[key][1]
                 temp_growth_rate = pd.DataFrame((target_data[year] - target_data[previous_year]) /
                                                 target_data[previous_year]).rename(columns={0: year})
                 growth_rate = pd.concat([growth_rate, temp_growth_rate], axis=1)
 
         return growth_rate
 
-    def generate_output_file(self, end_year: int):
+    def generate_output_file(self, end_year: int, readin_header: bool):
         """
         Generate Excel-Output-file storing all aggregated GFPMpt-data and calculated growth rates.
         """
-        self.Logger.info(f"Save aggregated GFPMpt-data in Excel-file.")
+        self.Logger.info(f'Save aggregated GFPMpt data in Excel-file.')
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
-            f'%s\\output\\{self.current_dt}_agg_data_{self.current_scenario}.xlsx' % self.sfile,
-            engine="xlsxwriter")
+            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_data_{self.current_scenario}.xlsx', engine='xlsxwriter')
 
-        # Generate index-sheet (necessary for readin-process of DART-BIO, if GFPMpt is linked with other CGE models,
-        # following part can be removed or adapted to the new linked model)
-
-        index_info = {
-            "": ["", "", "", "rdim", "cdim"],
-            1: ["par", "rel_quantities", "rel_quantities!B2", 2, 0],
-            2: ["par", "rel_prices", "rel_prices!B2", 2, 0],
-            3: ["par", "rel_values", "rel_values!B2", 2, 0],
-            4: ["par", "abs_quantities",  "abs_quantities!B1", 2, 1],
-            5: ["par", "abs_prices", "abs_prices!B1", 2, 1],
-            6: ["par", "abs_values", "abs_values!B1", 2, 1]
-        }
-        index_info = pd.DataFrame.from_dict(data=index_info, orient="index").rename(
-            columns={0: "Type", 1: "Name", 2: "Location", 3: "Row", 4: "Column"})
-        index_info.to_excel(writer_agg_data, sheet_name="index", index=False)
-        # can be remove until here
+        if readin_header:
+            # Generate an index sheet for GAMS (necessary for readin-process of GAMS-based CGE, if GFPMpt is linked with
+            # other CGE models, following part can be removed or adapted to the new linked model)
+            index_info = {
+                '': ['', '', '', 'rdim', 'cdim'],
+                1: ['par', 'rel_quantities', 'rel_quantities!B2', 2, 0],
+                2: ['par', 'rel_prices', 'rel_prices!B2', 2, 0],
+                3: ['par', 'rel_values', 'rel_values!B2', 2, 0],
+                4: ['par', 'abs_quantities',  'abs_quantities!B1', 2, 1],
+                5: ['par', 'abs_prices', 'abs_prices!B1', 2, 1],
+                6: ['par', 'abs_values', 'abs_values!B1', 2, 1]
+            }
+            index_info = pd.DataFrame.from_dict(data=index_info, orient='index').rename(
+                columns={0: 'Type', 1: 'Name', 2: 'Location', 3: 'Row', 4: 'Column'})
+            index_info.to_excel(writer_agg_data, sheet_name='index', index=False)
 
         # Generate info-sheet
         output_info = {
-            "Title": ["Aggregated pytiGFPM-Results for production quantities and prices", ],
-            "Input": [f"{self.input_path_gfpmpt}", ],
-            "Scenario": [f"{self.current_scenario}", ],
-            "Date": [f"{self.current_dt}", ],
-            "abs_quantities": ["Absolute projected production quantities (DART-BIO-Aggregates)", "[Tsd. m³ or t]"],
-            "rel_quantities": ["Relative changes in projected production quantities (DART-BIO-Aggregates)",
-                               "[yearly %-changes]"],
-            "abs_prices": ["Absolute projected prices (DART-BIO-Aggregates)", "[monetary unit/volume unit]"],
-            "rel_prices": ["Relative changes in projected prices (DART-BIO-Aggregates)", "[yearly %-changes]"],
-            "abs_values": ["Absolute projected values (DART-BIO-Aggregates)", "[monetary unit]"],
-            "rel_values": ["Relative changes in projected values (DART-BIO-Aggregates)", "[yearly %-changes]"]
+            'Title': ['Aggregated GFPMpt results for production quantities, prices, and values', ],
+            'Project': [f'{self.project}', ],
+            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Scenario': [f'{self.current_scenario}', ],
+            'Date': [f'{self.current_dt}', ],
+            'abs_quantities': [f'Absolute projected production quantities ({self.linked_CGE}-aggregates)',
+                               '[Tsd. m³ or t]'],
+            'rel_quantities': [f'Relative changes in projected production quantities ({self.linked_CGE}-aggregates)',
+                               '[yearly %-changes]'],
+            'abs_prices': [f'Absolute projected prices ({self.linked_CGE}-aggregates)',
+                           '[monetary unit/volume unit]'],
+            'rel_prices': [f'Relative changes in projected prices ({self.linked_CGE}-aggregates)',
+                           '[yearly %-changes]'],
+            'abs_values': [f'Absolute projected values ({self.linked_CGE}-aggregates)', '[monetary unit]'],
+            'rel_values': [f'Relative changes in projected values ({self.linked_CGE}-aggregates)', '[yearly %-changes]']
         }
-        output_info = pd.DataFrame.from_dict(data=output_info, orient="index").rename(columns={0: "Data_info", 1: "Units"})
-        output_info.to_excel(writer_agg_data, sheet_name="Data_info")
+        output_info = pd.DataFrame.from_dict(data=output_info, orient='index').rename(columns={0: 'Data_info',
+                                                                                               1: 'Units'})
+        output_info.to_excel(writer_agg_data, sheet_name='Data_info')
 
-        self.agg_production_data.to_excel(writer_agg_data, sheet_name="abs_quantities")
-        self.growth_rate_production_data[["DART-BIO-Region",
-                                          "DART-BIO-Sector",
-                                          end_year]].to_excel(writer_agg_data, sheet_name="rel_quantities")
+        self.agg_production_data.to_excel(writer_agg_data, sheet_name='abs_quantities', index=False)
+        self.growth_rate_production_data.to_excel(writer_agg_data, sheet_name='rel_quantities', index=False)
 
-        self.agg_price_data.to_excel(writer_agg_data, sheet_name="abs_prices")
-        self.growth_rate_price_data[["DART-BIO-Region",
-                                     "DART-BIO-Sector",
-                                     end_year]].to_excel(writer_agg_data, sheet_name="rel_prices")
+        self.agg_price_data.to_excel(writer_agg_data, sheet_name='abs_prices', index=False)
+        self.growth_rate_price_data.to_excel(writer_agg_data, sheet_name='rel_prices', index=False)
 
-        self.agg_value_data.to_excel(writer_agg_data, sheet_name="abs_values")
-        self.growth_rate_value_data[["DART-BIO-Region",
-                                     "DART-BIO-Sector",
-                                     end_year]].to_excel(writer_agg_data, sheet_name="rel_values")
+        self.agg_value_data.to_excel(writer_agg_data, sheet_name='abs_values', index=False)
+        self.growth_rate_value_data.to_excel(writer_agg_data, sheet_name='rel_values', index=False)
+
         writer_agg_data.save()
 
 
@@ -345,28 +343,28 @@ if __name__ == '__main__':
     Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
 
     Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_production_data,
-                                                                          col_name="quantity",
+                                                                          col_name='quantity',
                                                                           start_year=Pipeline_Agg.start_year)
     Pipeline_Agg.agg_price_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_price_data,
-                                                                     col_name="price",
+                                                                     col_name='price',
                                                                      start_year=Pipeline_Agg.start_year)
     Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_value_data,
-                                                                     col_name="value",
+                                                                     col_name='value',
                                                                      start_year=Pipeline_Agg.start_year)
     Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(
         target_data=Pipeline_Agg.agg_price_data,
         start_year=Pipeline_Agg.start_year,
         end_year=Pipeline_Agg.end_year,
-        flag_no_intermediate_periods=True)
+        link_type=Pipeline_Agg.link_typ)
     Pipeline_Agg.growth_rate_value_data = Pipeline_Agg.calc_growth_rate(
         target_data=Pipeline_Agg.agg_value_data,
         start_year=Pipeline_Agg.start_year,
         end_year=Pipeline_Agg.end_year,
-        flag_no_intermediate_periods=True)
+        link_type=Pipeline_Agg.link_typ)
     Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(
         target_data=Pipeline_Agg.agg_production_data,
         start_year=Pipeline_Agg.start_year,
         end_year=Pipeline_Agg.end_year,
-        flag_no_intermediate_periods=True)
+        link_type=Pipeline_Agg.link_typ)
 
-    Pipeline_Agg.generate_output_file(end_year=Pipeline_Agg.end_year)
+    Pipeline_Agg.generate_output_file(end_year=Pipeline_Agg.end_year, readin_header=True)
