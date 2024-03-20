@@ -217,6 +217,61 @@ class AggregateGFPMptResults(object):
 
         return sector_value_data
 
+    def agg_forest_data(self):
+        """
+        Aggregate GFPMpt data for forest stock and area to selected CGE level (regions)
+        :return: Aggregated forest data to selected CGE level (regions)
+        """
+        self.Logger.info(f'Aggregate GFPMpt data for forest to {self.linked_CGE} (region and sector).')
+
+        forest_data = self.gfpmpt_data['Forest']
+        period_data = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        forest_data = forest_data.merge(period_data, left_on='Period', right_on='Period', how='left')
+        forest_data = forest_data[['RegionCode', 'Period', 'year', 'ForStock', 'ForArea']]
+        forest_data = forest_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
+                                        how='left').dropna().drop_duplicates()
+
+        region_forest_area = forest_data.groupby([f'{self.linked_CGE}_{self.project}', 'year']
+                                                 )['ForArea'].sum().reset_index()
+        region_forest_stock = forest_data.groupby([f'{self.linked_CGE}_{self.project}', 'year']
+                                                  )['ForStock'].sum().reset_index()
+
+        return region_forest_stock, region_forest_area
+
+    def agg_harvest_data(self):
+        """
+        Aggregate GFPMpt data for raw material from forest (= harvest) to selected CGE level (regions) using GFPMpt-
+        parameter raw_material_from_forest to aggregate only supply originating from forests.
+        :return: Aggregated harvest data to selected CGE level (regions)
+        """
+        self.Logger.info(f'Aggregate GFPMpt data for harvest to {self.linked_CGE} (region and sector).')
+        # todo add fuelwood from forest to forest df in GFPMpt results to make calculations
+        harvest_data = self.gfpmpt_data['Forest']
+        period_data = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        harvest_data = harvest_data.merge(period_data, left_on='Period', right_on='Period', how='left')
+        harvest_data = harvest_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
+                                          how='left').dropna().reset_index(drop=True)
+        region_harvest_data = harvest_data.groupby([f'{self.linked_CGE}_{self.project}', 'year']
+                                                   )['supply_from_forest'].sum().reset_index()
+
+        return region_harvest_data
+
+    def calc_harvest_intensity(self):
+        """
+        Calculate harvest intensity as the ratio of harvest per forest area [Efm.ha-1] for each region of the selected
+        CGE.
+        :return pd.DataFrame: Harvest intensities for each region of the selected CGE
+        """
+        # todo add fuelwood from forest to forest df in GFPMpt results to make calculations
+        agg_forest_area = self.agg_forest_area[self.agg_forest_area['year'] != self.start_year].reset_index(drop=True)
+        harvest_intensity = pd.DataFrame((self.agg_harvest_data['supply_from_forest'] * 1000000) /
+                                         (agg_forest_area['ForArea'] * 1000)
+                                         ).rename(columns={0: 'harvest_intensity'})
+        harvest_intensity = pd.concat([self.agg_harvest_data[[f'{self.linked_CGE}_{self.project}', 'year']],
+                                       harvest_intensity], axis=1)
+
+        return harvest_intensity
+
     def reformate_gfpmpt_data(self, target_data: pd.DataFrame, col_name: str, start_year: int):
         """
         Reformate GFPMpt-data to save aggregated data for each considered year in a separate column.
@@ -226,8 +281,13 @@ class AggregateGFPMptResults(object):
         :return pd.DataFrame: Reformated target_data
         """
         self.Logger.info(f'Reformate GFPMpt-Data to prepare growth rate calculations.')
-        reformated_data = target_data[target_data['year'] == start_year][
-            [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', f'{col_name}']].reset_index(
+        if 'GTAP-Sector' in target_data.columns:
+            selected_col = [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', f'{col_name}']
+
+        else:
+            selected_col = [f'{self.linked_CGE}_{self.project}', f'{col_name}']
+
+        reformated_data = target_data[target_data['year'] == start_year][selected_col].reset_index(
             drop=True).rename(columns={f"{col_name}": start_year})
 
         year = start_year
@@ -251,7 +311,12 @@ class AggregateGFPMptResults(object):
         :return pd.DataFrame: Growth rates for target_data with chosen options
         """
         self.Logger.info(f'Calculate growth rate {target_data}.')
-        growth_rate = target_data[[f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', start_year]]
+        if 'GTAP-Sector' in target_data.columns:
+            selected_col = [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', start_year]
+        else:
+            selected_col = [f'{self.linked_CGE}_{self.project}', start_year]
+
+        growth_rate = target_data[selected_col]
         if link_type == 'end_point':
             temp_growth_rate = pd.DataFrame((target_data[end_year] - target_data[start_year]) /
                                             target_data[start_year]).rename(columns={0: end_year})
@@ -268,14 +333,15 @@ class AggregateGFPMptResults(object):
 
         return growth_rate
 
-    def generate_output_file(self, end_year: int, readin_header: bool):
+    def generate_output_file_production(self, readin_header: bool):
         """
-        Generate Excel-Output-file storing all aggregated GFPMpt-data and calculated growth rates.
+        Generate Excel-Output-file storing all aggregated production related GFPMpt data and calculated growth rates.
         """
         self.Logger.info(f'Save aggregated GFPMpt data in Excel-file.')
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
-            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_data_{self.current_scenario}.xlsx', engine='xlsxwriter')
+            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
+            engine='xlsxwriter')
 
         if readin_header:
             # Generate an index sheet for GAMS (necessary for readin-process of GAMS-based CGE, if GFPMpt is linked with
@@ -326,6 +392,46 @@ class AggregateGFPMptResults(object):
 
         writer_agg_data.save()
 
+    def generate_output_file_forest(self):
+        """
+        Generate Excel-Output-file storing all aggregated forest related GFPMpt data and calculated growth rates.
+        """
+        self.Logger.info(f'Save aggregated GFPMpt-data in Excel-file.')
+
+        # Excel-Writer
+        writer_forest = pd.ExcelWriter(
+            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
+            engine='xlsxwriter')
+
+        # Generate info-sheet
+        data_info = {
+            'Title': ['Aggregated pytiGFPM-Results for forest development', ],
+            'Project': [f'{self.project}', ],
+            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Scenario': [f'{self.current_scenario}', ],
+            'Date': [f'{self.current_dt}', ],
+            'abs_forest_area': ['Absolute projected forest area', '[Tsd. ha]'],
+            'rel_forest_area': ['Relative changes in projected forest area', '[yearly %-changes]'],
+            'abs_forest_stock': ['Absolute projected forest stock', '[Mio. VFm]'],
+            'rel_forest_stock': ['Relative changes in projected forest stock', '[yearly %-changes]'],
+            'abs_harvest': ['Absolute projected harvest volumes', '[EFm]'],
+            'rel_harvest': ['Relative changes in projected harvest volumes', '[yearly %-changes]'],
+            'abs_harvest_intensity': ['Absolute projected harvest intensity', '[EFm/ha]'],
+            'rel_harvest_intensity': ['Relative changes in projected harvest intensity', '[yearly %-changes]']
+        }
+        data_info = pd.DataFrame.from_dict(data=data_info, orient='index').rename(columns={0: 'Data_info', 1: 'Units'})
+        data_info.to_excel(writer_forest, sheet_name='Data_info')
+
+        self.agg_forest_area.to_excel(writer_forest, sheet_name='abs_forest_area', index=False)
+        self.growth_forest_area.to_excel(writer_forest, sheet_name='rel_forest_area', index=False)
+        self.agg_forest_stock.to_excel(writer_forest, sheet_name='abs_forest_stock', index=False)
+        self.growth_forest_stock.to_excel(writer_forest, sheet_name='rel_forest_stock', index=False)
+        self.agg_harvest_data.to_excel(writer_forest, sheet_name='abs_harvest', index=False)
+        self.growth_harvest_data.to_excel(writer_forest, sheet_name='rel_harvest', index=False)
+        self.agg_harvest_intensity.to_excel(writer_forest, sheet_name='abs_harvest_intensity', index=False)
+        self.growth_harvest_intensity.to_excel(writer_forest, sheet_name='rel_harvest_intensity', index=False)
+        writer_forest.save()
+
 
 if __name__ == '__main__':
     Pipeline_Agg = AggregateGFPMptResults(current_scenario='linkage_pipeline_test',
@@ -341,6 +447,9 @@ if __name__ == '__main__':
     Pipeline_Agg.agg_production_data = Pipeline_Agg.agg_production_data()
     Pipeline_Agg.agg_price_data = Pipeline_Agg.agg_price_data()
     Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
+    Pipeline_Agg.agg_forest_stock, Pipeline_Agg.agg_forest_area = Pipeline_Agg.agg_forest_data()
+    Pipeline_Agg.agg_harvest_data = Pipeline_Agg.agg_harvest_data()
+    Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.calc_harvest_intensity()
 
     Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_production_data,
                                                                           col_name='quantity',
@@ -351,20 +460,48 @@ if __name__ == '__main__':
     Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_value_data,
                                                                      col_name='value',
                                                                      start_year=Pipeline_Agg.start_year)
-    Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(
-        target_data=Pipeline_Agg.agg_price_data,
-        start_year=Pipeline_Agg.start_year,
-        end_year=Pipeline_Agg.end_year,
-        link_type=Pipeline_Agg.link_typ)
-    Pipeline_Agg.growth_rate_value_data = Pipeline_Agg.calc_growth_rate(
-        target_data=Pipeline_Agg.agg_value_data,
-        start_year=Pipeline_Agg.start_year,
-        end_year=Pipeline_Agg.end_year,
-        link_type=Pipeline_Agg.link_typ)
-    Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(
-        target_data=Pipeline_Agg.agg_production_data,
-        start_year=Pipeline_Agg.start_year,
-        end_year=Pipeline_Agg.end_year,
-        link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.agg_forest_stock = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_forest_stock,
+                                                                       col_name='ForStock',
+                                                                       start_year=Pipeline_Agg.start_year)
+    Pipeline_Agg.agg_forest_area = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_forest_area,
+                                                                      col_name='ForArea',
+                                                                      start_year=Pipeline_Agg.start_year)
+    Pipeline_Agg.agg_harvest_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_harvest_data,
+                                                                       col_name='supply_from_forest',
+                                                                       start_year=Pipeline_Agg.start_year)
+    Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_harvest_intensity,
+                                                                            col_name='harvest_intensity',
+                                                                            start_year=Pipeline_Agg.start_year)
+    Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_price_data,
+                                                                        start_year=Pipeline_Agg.start_year,
+                                                                        end_year=Pipeline_Agg.end_year,
+                                                                        link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.growth_rate_value_data = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_value_data,
+                                                                        start_year=Pipeline_Agg.start_year,
+                                                                        end_year=Pipeline_Agg.end_year,
+                                                                        link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_production_data,
+                                                                             start_year=Pipeline_Agg.start_year,
+                                                                             end_year=Pipeline_Agg.end_year,
+                                                                             link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.growth_forest_stock = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_forest_stock,
+                                                                     start_year=Pipeline_Agg.start_year,
+                                                                     end_year=Pipeline_Agg.end_year,
+                                                                     link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.growth_forest_area = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_forest_area,
+                                                                    start_year=Pipeline_Agg.start_year,
+                                                                    end_year=Pipeline_Agg.end_year,
+                                                                    link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.growth_harvest_data = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_harvest_data,
+                                                                     start_year=Pipeline_Agg.start_year,
+                                                                     end_year=Pipeline_Agg.end_year,
+                                                                     link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.growth_harvest_intensity = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_harvest_intensity,
+                                                                          start_year=Pipeline_Agg.start_year,
+                                                                          end_year=Pipeline_Agg.end_year,
+                                                                          link_type=Pipeline_Agg.link_typ)
 
-    Pipeline_Agg.generate_output_file(end_year=Pipeline_Agg.end_year, readin_header=True)
+    Pipeline_Agg.generate_output_file_production(readin_header=True)
+    Pipeline_Agg.generate_output_file_forest()
+
+    Pipeline_Agg.Logger.info(f'This link is unbreakable.')
