@@ -31,9 +31,8 @@ class AggregateGFPMptResults(object):
         self.linked_CGE = linked_CGE
         self.project = project
         self.gfpmpt_data = AggregateGFPMptResults.readin_model_data(self)
-        (self.region_key,
-         self.commodity_key,
-         self.exogenous_change_structure) = AggregateGFPMptResults.readin_help_data(self)
+        (self.region_key, self.commodity_key, self.exogenous_change_structure, self.start_year, self.end_year
+         ) = AggregateGFPMptResults.readin_help_data(self)
 
     def readin_model_data(self):
         """
@@ -80,6 +79,8 @@ class AggregateGFPMptResults(object):
 
         exogenous_change_data = self.gfpmpt_data['data_periods'][
             ['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        start_year = exogenous_change_data['year'][0]
+        end_year = exogenous_change_data['year'][max(exogenous_change_data.index)]
 
         exogenous_change_structure = {}
         year_prev = exogenous_change_data['year'][0]
@@ -90,13 +91,7 @@ class AggregateGFPMptResults(object):
             exogenous_change_structure[f'Period_{period}'] = [year_prev, period_len]
             year_prev = year
 
-        """exogenous_change_structure = {
-            "Period_1": 4,
-            "Period_2": 5,
-            "Period_3": 5,
-            "Period_4": 5}"""
-
-        return region_key, commodity_key, exogenous_change_structure
+        return region_key, commodity_key, exogenous_change_structure, start_year, end_year
 
     def agg_production_data(self):
         """
@@ -230,16 +225,16 @@ class AggregateGFPMptResults(object):
         :param start_year: Year from which data will be reformated
         :return pd.DataFrame: Reformated target_data
         """
-        self.Logger.info(f"Reformate GFPMpt-Data to prepare growth rate calculations.")
-        reformated_data = target_data[
-            target_data["Year"] == start_year][["DART-BIO-Region", "DART-BIO-Sector", f"{col_name}"]
-        ].reset_index(drop=True).rename(columns={f"{col_name}": start_year})
+        self.Logger.info(f'Reformate GFPMpt-Data to prepare growth rate calculations.')
+        reformated_data = target_data[target_data['year'] == start_year][
+            [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', f'{col_name}']].reset_index(
+            drop=True).rename(columns={f"{col_name}": start_year})
 
         year = start_year
         for key in self.exogenous_change_structure.keys():
-            year += self.exogenous_change_structure[key]
-            temp_reformated_data = pd.DataFrame(target_data[target_data["Year"] == year][f"{col_name}"]).reset_index(
-                drop=True).rename(columns={f"{col_name}": year})
+            year += self.exogenous_change_structure[key][1]
+            temp_reformated_data = pd.DataFrame(target_data[target_data['year'] == year][f'{col_name}']).reset_index(
+                drop=True).rename(columns={f'{col_name}': year})
             reformated_data = pd.concat([reformated_data, temp_reformated_data], axis=1)
 
         return reformated_data
@@ -351,27 +346,27 @@ if __name__ == '__main__':
 
     Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_production_data,
                                                                           col_name="quantity",
-                                                                          start_year=2011)
+                                                                          start_year=Pipeline_Agg.start_year)
     Pipeline_Agg.agg_price_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_price_data,
                                                                      col_name="price",
-                                                                     start_year=2011)
+                                                                     start_year=Pipeline_Agg.start_year)
     Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_value_data,
                                                                      col_name="value",
-                                                                     start_year=2011)
+                                                                     start_year=Pipeline_Agg.start_year)
     Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(
         target_data=Pipeline_Agg.agg_price_data,
-        start_year=2011,
-        end_year=2030,
+        start_year=Pipeline_Agg.start_year,
+        end_year=Pipeline_Agg.end_year,
         flag_no_intermediate_periods=True)
     Pipeline_Agg.growth_rate_value_data = Pipeline_Agg.calc_growth_rate(
         target_data=Pipeline_Agg.agg_value_data,
-        start_year=2011,
-        end_year=2030,
+        start_year=Pipeline_Agg.start_year,
+        end_year=Pipeline_Agg.end_year,
         flag_no_intermediate_periods=True)
     Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(
         target_data=Pipeline_Agg.agg_production_data,
-        start_year=2011,
-        end_year=2030,
+        start_year=Pipeline_Agg.start_year,
+        end_year=Pipeline_Agg.end_year,
         flag_no_intermediate_periods=True)
 
-    Pipeline_Agg.generate_output_file(end_year=2030)
+    Pipeline_Agg.generate_output_file(end_year=Pipeline_Agg.end_year)
