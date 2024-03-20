@@ -272,6 +272,26 @@ class AggregateGFPMptResults(object):
 
         return harvest_intensity
 
+    def agg_carbon_data(self):
+        """
+        Aggregate GFPMpt data for carbon to selected CGE level (regions)
+        :return: Aggregated carbon data to selected CGE level (regions)
+        """
+        self.Logger.info(f'Aggregate GFPMpt data for carbon to {self.linked_CGE} (region and sector).')
+
+        carbon_data = self.gfpmpt_data['Carbon']
+        period_data = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        carbon_data = carbon_data.merge(period_data, left_on='Period', right_on='Period', how='left')
+        carbon_data = carbon_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
+                                        how='left').dropna().drop_duplicates()
+
+        region_carbon_biomass = carbon_data.groupby([f'{self.linked_CGE}_{self.project}', 'year']
+                                                    )['CarbonStockBiomass [MtCO2]'].sum().reset_index()
+        region_carbon_hwp = carbon_data.groupby([f'{self.linked_CGE}_{self.project}', 'year']
+                                                )['CarbonStockHWP [MtCO2]'].sum().reset_index()
+
+        return region_carbon_biomass, region_carbon_hwp
+
     def reformate_gfpmpt_data(self, target_data: pd.DataFrame, col_name: str, start_year: int):
         """
         Reformate GFPMpt-data to save aggregated data for each considered year in a separate column.
@@ -337,7 +357,7 @@ class AggregateGFPMptResults(object):
         """
         Generate Excel-Output-file storing all aggregated production related GFPMpt data and calculated growth rates.
         """
-        self.Logger.info(f'Save aggregated GFPMpt data in Excel-file.')
+        self.Logger.info(f'Save aggregated production related GFPMpt data in Excel-file.')
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
@@ -363,23 +383,20 @@ class AggregateGFPMptResults(object):
         output_info = {
             'Title': ['Aggregated GFPMpt results for production quantities, prices, and values', ],
             'Project': [f'{self.project}', ],
+            'Linked CGE': [f'{self.linked_CGE}', ],
             'Input': [f'{self.input_path_gfpmpt}', ],
             'Scenario': [f'{self.current_scenario}', ],
             'Date': [f'{self.current_dt}', ],
-            'abs_quantities': [f'Absolute projected production quantities ({self.linked_CGE}-aggregates)',
-                               '[Tsd. m³ or t]'],
-            'rel_quantities': [f'Relative changes in projected production quantities ({self.linked_CGE}-aggregates)',
-                               '[yearly %-changes]'],
-            'abs_prices': [f'Absolute projected prices ({self.linked_CGE}-aggregates)',
-                           '[monetary unit/volume unit]'],
-            'rel_prices': [f'Relative changes in projected prices ({self.linked_CGE}-aggregates)',
-                           '[yearly %-changes]'],
-            'abs_values': [f'Absolute projected values ({self.linked_CGE}-aggregates)', '[monetary unit]'],
-            'rel_values': [f'Relative changes in projected values ({self.linked_CGE}-aggregates)', '[yearly %-changes]']
+            'abs_quantities': [f'Absolute projected production quantities)', '[Tsd. m³ or t]'],
+            'rel_quantities': [f'Relative changes in projected production quantities)', '[yearly %-changes]'],
+            'abs_prices': [f'Absolute projected prices', '[monetary unit/volume unit]'],
+            'rel_prices': [f'Relative changes in projected prices', '[yearly %-changes]'],
+            'abs_values': [f'Absolute projected values', '[monetary unit]'],
+            'rel_values': [f'Relative changes in projected values', '[yearly %-changes]']
         }
-        output_info = pd.DataFrame.from_dict(data=output_info, orient='index').rename(columns={0: 'Data_info',
+        output_info = pd.DataFrame.from_dict(data=output_info, orient='index').rename(columns={0: 'Metadata',
                                                                                                1: 'Units'})
-        output_info.to_excel(writer_agg_data, sheet_name='Data_info')
+        output_info.to_excel(writer_agg_data, sheet_name='Metadata')
 
         self.agg_production_data.to_excel(writer_agg_data, sheet_name='abs_quantities', index=False)
         self.growth_rate_production_data.to_excel(writer_agg_data, sheet_name='rel_quantities', index=False)
@@ -396,7 +413,7 @@ class AggregateGFPMptResults(object):
         """
         Generate Excel-Output-file storing all aggregated forest related GFPMpt data and calculated growth rates.
         """
-        self.Logger.info(f'Save aggregated GFPMpt-data in Excel-file.')
+        self.Logger.info(f'Save aggregated forest related GFPMpt data in Excel-file.')
 
         # Excel-Writer
         writer_forest = pd.ExcelWriter(
@@ -407,6 +424,7 @@ class AggregateGFPMptResults(object):
         data_info = {
             'Title': ['Aggregated pytiGFPM-Results for forest development', ],
             'Project': [f'{self.project}', ],
+            'Linked CGE': [f'{self.linked_CGE}', ],
             'Input': [f'{self.input_path_gfpmpt}', ],
             'Scenario': [f'{self.current_scenario}', ],
             'Date': [f'{self.current_dt}', ],
@@ -419,8 +437,8 @@ class AggregateGFPMptResults(object):
             'abs_harvest_intensity': ['Absolute projected harvest intensity', '[EFm/ha]'],
             'rel_harvest_intensity': ['Relative changes in projected harvest intensity', '[yearly %-changes]']
         }
-        data_info = pd.DataFrame.from_dict(data=data_info, orient='index').rename(columns={0: 'Data_info', 1: 'Units'})
-        data_info.to_excel(writer_forest, sheet_name='Data_info')
+        data_info = pd.DataFrame.from_dict(data=data_info, orient='index').rename(columns={0: 'Metadata', 1: 'Units'})
+        data_info.to_excel(writer_forest, sheet_name='Metadata')
 
         self.agg_forest_area.to_excel(writer_forest, sheet_name='abs_forest_area', index=False)
         self.growth_forest_area.to_excel(writer_forest, sheet_name='rel_forest_area', index=False)
@@ -431,6 +449,38 @@ class AggregateGFPMptResults(object):
         self.agg_harvest_intensity.to_excel(writer_forest, sheet_name='abs_harvest_intensity', index=False)
         self.growth_harvest_intensity.to_excel(writer_forest, sheet_name='rel_harvest_intensity', index=False)
         writer_forest.save()
+
+    def generate_output_file_carbon(self):
+        """
+        Generate Excel-Output-file storing all aggregated carbon related GFPMpt data and calculated growth rates.
+        """
+        self.Logger.info(f'Save aggregated carbon related GFPMpt data in Excel-file.')
+        # Excel-Writer
+        writer_carbon_data = pd.ExcelWriter(
+            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
+            engine='xlsxwriter')
+
+        # Generate info-sheet
+        data_info = {
+            'Title': ['Aggregated carbon stocks for biomass and HWP', ],
+            'Project': [f'{self.project}', ],
+            'Linked CGE': [f'{self.linked_CGE}', ],
+            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Scenario': [f'{self.current_scenario}', ],
+            'Date': [f'{self.current_dt}', ],
+            'abs_carbon_stock_biomass': [f'Absolute carbon stocks in biomass (agb + bgb)', '[MtC]'],
+            'rel_carbon_stock_biomass': [f'Relative changes in projected carbon stocks of biomass',
+                                         '[yearly %-changes]'],
+            'abs_carbon_stock_hwp': [f'Absolute carbon stocks in hwp', '[MtC]'],
+            'rel_carbon_stock_hwp': [f'Relative changes in projected carbon stocks of hwp', '[yearly %-changes]'],
+        }
+        data_info = pd.DataFrame.from_dict(data=data_info, orient='index').rename(columns={0: 'Metadata', 1: 'Units'})
+        data_info.to_excel(writer_carbon_data, sheet_name='Metadata')
+        self.agg_carbon_biomass.to_excel(writer_carbon_data, sheet_name='abs_carbon_stock_biomass', index=False)
+        self.growth_carbon_biomass.to_excel(writer_carbon_data, sheet_name='rel_carbon_stock_biomass', index=False)
+        self.agg_carbon_hwp.to_excel(writer_carbon_data, sheet_name='abs_carbon_stock_hwp', index=False)
+        self.growth_carbon_hwp.to_excel(writer_carbon_data, sheet_name='rel_carbon_stock_hwp', index=False)
+        writer_carbon_data.save()
 
 
 if __name__ == '__main__':
@@ -450,6 +500,7 @@ if __name__ == '__main__':
     Pipeline_Agg.agg_forest_stock, Pipeline_Agg.agg_forest_area = Pipeline_Agg.agg_forest_data()
     Pipeline_Agg.agg_harvest_data = Pipeline_Agg.agg_harvest_data()
     Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.calc_harvest_intensity()
+    Pipeline_Agg.agg_carbon_biomass, Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.agg_carbon_data()
 
     Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_production_data,
                                                                           col_name='quantity',
@@ -472,6 +523,13 @@ if __name__ == '__main__':
     Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_harvest_intensity,
                                                                             col_name='harvest_intensity',
                                                                             start_year=Pipeline_Agg.start_year)
+    Pipeline_Agg.agg_carbon_biomass = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_carbon_biomass,
+                                                                         col_name='CarbonStockBiomass [MtCO2]',
+                                                                         start_year=Pipeline_Agg.start_year)
+    Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.reformate_gfpmpt_data(target_data=Pipeline_Agg.agg_carbon_hwp,
+                                                                     col_name='CarbonStockHWP [MtCO2]',
+                                                                     start_year=Pipeline_Agg.start_year)
+
     Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_price_data,
                                                                         start_year=Pipeline_Agg.start_year,
                                                                         end_year=Pipeline_Agg.end_year,
@@ -501,7 +559,17 @@ if __name__ == '__main__':
                                                                           end_year=Pipeline_Agg.end_year,
                                                                           link_type=Pipeline_Agg.link_typ)
 
+    Pipeline_Agg.growth_carbon_biomass = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_carbon_biomass,
+                                                                       start_year=Pipeline_Agg.start_year,
+                                                                       end_year=Pipeline_Agg.end_year,
+                                                                       link_type=Pipeline_Agg.link_typ)
+    Pipeline_Agg.growth_carbon_hwp = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.agg_carbon_biomass,
+                                                                   start_year=Pipeline_Agg.start_year,
+                                                                   end_year=Pipeline_Agg.end_year,
+                                                                   link_type=Pipeline_Agg.link_typ)
+
     Pipeline_Agg.generate_output_file_production(readin_header=True)
     Pipeline_Agg.generate_output_file_forest()
+    Pipeline_Agg.generate_output_file_carbon()
 
     Pipeline_Agg.Logger.info(f'This link is unbreakable.')
