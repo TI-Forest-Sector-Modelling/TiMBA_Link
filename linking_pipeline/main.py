@@ -36,8 +36,8 @@ if __name__ == '__main__':
                                      linked_CGE='MAGNET',  # Alternatives: 'DART-BIO', 'MAGNET'
                                      project='CarbonLeak',    # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
                                      # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
-                                     aggregation_switch=False,
-                                     disaggregation_switch=True)
+                                     aggregation_switch=True,
+                                     disaggregation_switch=False)
 
     if pipeline.aggregation_switch:
         AggregateGFPMptResults.main_aggregation_pipeline(self=pipeline,

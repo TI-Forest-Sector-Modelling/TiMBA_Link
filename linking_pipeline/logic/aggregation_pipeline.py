@@ -246,13 +246,19 @@ class AggregateGFPMptResults(object):
         """
         self.Logger.info(f'Aggregate GFPMpt data for harvest to {self.linked_CGE} (region and sector).')
         # todo add fuelwood from forest to forest df in GFPMpt results to make calculations
-        harvest_data = self.gfpmpt_data['Forest']
-        period_data = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
-        harvest_data = harvest_data.merge(period_data, left_on='Period', right_on='Period', how='left')
+        harvest_data = self.gfpmpt_data['data_periods']
+        harvest_data = harvest_data[(harvest_data['domain'] == 'Supply') &
+                                    (harvest_data['RegionCode'] != 'zy')].reset_index(drop=True)
+        fuelwood_from_forest = self.gfpmpt_data['Forest']['FuelwoodForest']
+
+        harvest_data.loc[:, 'quantity'] = harvest_data['quantity'] * fuelwood_from_forest
+        harvest_data = harvest_data[harvest_data['CommodityCode'] < 83].reset_index(drop=True)
+
+        harvest_data = harvest_data.groupby(['RegionCode', 'year'])['quantity'].sum().reset_index()
         harvest_data = harvest_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
                                           how='left').dropna().reset_index(drop=True)
         region_harvest_data = harvest_data.groupby([f'{self.linked_CGE}_{self.project}', 'year']
-                                                   )['supply_from_forest'].sum().reset_index()
+                                                   )['quantity'].sum().reset_index()
 
         return region_harvest_data
 
@@ -263,8 +269,8 @@ class AggregateGFPMptResults(object):
         :return pd.DataFrame: Harvest intensities for each region of the selected CGE
         """
         # todo add fuelwood from forest to forest df in GFPMpt results to make calculations
-        agg_forest_area = self.agg_forest_area[self.agg_forest_area['year'] != self.start_year].reset_index(drop=True)
-        harvest_intensity = pd.DataFrame((self.agg_harvest_data['supply_from_forest'] * 1000000) /
+        agg_forest_area = self.agg_forest_area
+        harvest_intensity = pd.DataFrame((self.agg_harvest_data['quantity'] * 1000) /
                                          (agg_forest_area['ForArea'] * 1000)
                                          ).rename(columns={0: 'harvest_intensity'})
         harvest_intensity = pd.concat([self.agg_harvest_data[[f'{self.linked_CGE}_{self.project}', 'year']],
@@ -540,7 +546,7 @@ class AggregateGFPMptResults(object):
                 start_year=Pipeline_Agg.start_year)
             Pipeline_Agg.agg_harvest_data = Pipeline_Agg.reformate_gfpmpt_data(
                 target_data=Pipeline_Agg.agg_harvest_data,
-                col_name='supply_from_forest',
+                col_name='quantity',
                 start_year=Pipeline_Agg.start_year)
             Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.reformate_gfpmpt_data(
                 target_data=Pipeline_Agg.agg_harvest_intensity,
