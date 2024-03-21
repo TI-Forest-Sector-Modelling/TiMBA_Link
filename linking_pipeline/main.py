@@ -1,12 +1,14 @@
 # -----------------------------------------------------
-# GFPMpt_linking_pipeline - aggregation_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
-# GFPMpt-output aggregation to selected CGE (spatial and sectoral aggregation)
+# GFPMpt_linking_pipeline - main_linking_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
+# Soft linkage of GFPMpt to selected CGE (spatial and sectoral aggregation and disaggregation)
+# Projects: BioSDG, CarbonLeak
 # Status: 03.2024
 # Last update: 03.2024
 # -----------------------------------------------------
 # imports
 import datetime as dt
 from linking_pipeline.logic.aggregation_pipeline import AggregateGFPMptResults
+from linking_pipeline.logic.disaggregation_pipeline import DisaggregateCGEResults
 
 class main_linking_pipeline(object):
     def __init__(self,
@@ -34,12 +36,16 @@ if __name__ == '__main__':
                                      linked_CGE='MAGNET',  # Alternatives: 'DART-BIO', 'MAGNET'
                                      project='CarbonLeak',    # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
                                      # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
-                                     aggregation_switch=True,
-                                     disaggregation_switch=False)
+                                     aggregation_switch=False,
+                                     disaggregation_switch=True)
 
     if pipeline.aggregation_switch:
         AggregateGFPMptResults.main_aggregation_pipeline(self=pipeline,
                                                          domains_to_aggregate=['production', 'forest', 'carbon']
                                                          # Alternatives: 'production', 'forest', 'carbon'
                                                          )
+
+    if pipeline.disaggregation_switch:
+        DisaggregateCGEResults.main_disaggregation_pipeline(self=pipeline)
+
 
