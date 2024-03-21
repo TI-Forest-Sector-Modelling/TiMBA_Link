@@ -482,117 +482,112 @@ class AggregateGFPMptResults(object):
         self.growth_carbon_hwp.to_excel(writer_carbon_data, sheet_name='rel_carbon_stock_hwp', index=False)
         writer_carbon_data.save()
 
+    def main_aggregation_pipeline(self, domains_to_aggregate: list):
+        Pipeline_Agg = AggregateGFPMptResults(
+            current_scenario=self.current_scenario,
+            input_path_gfpmpt=self.input_path_gfpmpt,
+            link_typ=self.link_typ,  # Alternatives: 'continous', 'end_point'
+            linked_CGE=self.linked_CGE,  # Alternatives: 'DART-BIO', 'MAGNET'
+            project=self.project  # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
+            # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
+            )
 
-if __name__ == '__main__':
-    Pipeline_Agg = AggregateGFPMptResults(current_scenario='reference_scenario_SSP2_mea_elast',
-                                          input_path_gfpmpt='DataContainer_Sc_20240227_Updated_World_2015_only_SSP2_DSp1E_Mea18',
-                                          link_typ='continous',  # Alternatives: 'continous', 'end_point'
-                                          linked_CGE='MAGNET',  # Alternatives: 'DART-BIO', 'MAGNET'
-                                          project='CarbonLeak'    # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
-                                          # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
-                                          )
-    # Utilization notice adapt AggregationGFPMForest() to readin new input files:
-    # input_path_gfpmt corresponds to the file name of the result-output file form GFPMpt
-    aggregate_production = True
-    aggregate_forest = True
-    aggregate_carbon = True
+        if 'production' in domains_to_aggregate:
+            Pipeline_Agg.agg_production_data = Pipeline_Agg.agg_production_data()
+            Pipeline_Agg.agg_price_data = Pipeline_Agg.agg_price_data()
+            Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
+            Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_production_data,
+                col_name='quantity',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.agg_price_data = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_price_data,
+                col_name='price',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_value_data,
+                col_name='value',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_price_data,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_rate_value_data = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_value_data,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_production_data,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
 
-    if aggregate_production:
-        Pipeline_Agg.agg_production_data = Pipeline_Agg.agg_production_data()
-        Pipeline_Agg.agg_price_data = Pipeline_Agg.agg_price_data()
-        Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
-        Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_production_data,
-            col_name='quantity',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.agg_price_data = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_price_data,
-            col_name='price',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_value_data,
-            col_name='value',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_price_data,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.growth_rate_value_data = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_value_data,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_production_data,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.generate_output_file_production(readin_header=True)
 
-        Pipeline_Agg.generate_output_file_production(readin_header=True)
+        if 'forest' in domains_to_aggregate:
+            Pipeline_Agg.agg_forest_stock, Pipeline_Agg.agg_forest_area = Pipeline_Agg.agg_forest_data()
+            Pipeline_Agg.agg_harvest_data = Pipeline_Agg.agg_harvest_data()
+            Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.calc_harvest_intensity()
+            Pipeline_Agg.agg_forest_stock = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_forest_stock,
+                col_name='ForStock',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.agg_forest_area = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_forest_area,
+                col_name='ForArea',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.agg_harvest_data = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_harvest_data,
+                col_name='supply_from_forest',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_harvest_intensity,
+                col_name='harvest_intensity',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.growth_forest_stock = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_forest_stock,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_forest_area = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_forest_area,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_harvest_data = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_harvest_data,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_harvest_intensity = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_harvest_intensity,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.generate_output_file_forest()
 
-    if aggregate_forest:
-        Pipeline_Agg.agg_forest_stock, Pipeline_Agg.agg_forest_area = Pipeline_Agg.agg_forest_data()
-        Pipeline_Agg.agg_harvest_data = Pipeline_Agg.agg_harvest_data()
-        Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.calc_harvest_intensity()
-        Pipeline_Agg.agg_forest_stock = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_forest_stock,
-            col_name='ForStock',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.agg_forest_area = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_forest_area,
-            col_name='ForArea',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.agg_harvest_data = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_harvest_data,
-            col_name='supply_from_forest',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_harvest_intensity,
-            col_name='harvest_intensity',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.growth_forest_stock = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_forest_stock,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.growth_forest_area = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_forest_area,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.growth_harvest_data = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_harvest_data,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.growth_harvest_intensity = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_harvest_intensity,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.generate_output_file_forest()
+        if 'carbon' in domains_to_aggregate:
+            Pipeline_Agg.agg_carbon_biomass, Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.agg_carbon_data()
+            Pipeline_Agg.agg_carbon_biomass = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_carbon_biomass,
+                col_name='CarbonStockBiomass [MtCO2]',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.agg_carbon_hwp,
+                col_name='CarbonStockHWP [MtCO2]',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.growth_carbon_biomass = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_carbon_biomass,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_carbon_hwp = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.agg_carbon_biomass,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.generate_output_file_carbon()
 
-    if aggregate_carbon:
-        Pipeline_Agg.agg_carbon_biomass, Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.agg_carbon_data()
-        Pipeline_Agg.agg_carbon_biomass = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_carbon_biomass,
-            col_name='CarbonStockBiomass [MtCO2]',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.reformate_gfpmpt_data(
-            target_data=Pipeline_Agg.agg_carbon_hwp,
-            col_name='CarbonStockHWP [MtCO2]',
-            start_year=Pipeline_Agg.start_year)
-        Pipeline_Agg.growth_carbon_biomass = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_carbon_biomass,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.growth_carbon_hwp = Pipeline_Agg.calc_growth_rate(
-            target_data=Pipeline_Agg.agg_carbon_biomass,
-            start_year=Pipeline_Agg.start_year,
-            end_year=Pipeline_Agg.end_year,
-            link_type=Pipeline_Agg.link_typ)
-        Pipeline_Agg.generate_output_file_carbon()
-
-    Pipeline_Agg.Logger.info(f'This link is unbreakable.')
+        Pipeline_Agg.Logger.info(f'This link is unbreakable.')
