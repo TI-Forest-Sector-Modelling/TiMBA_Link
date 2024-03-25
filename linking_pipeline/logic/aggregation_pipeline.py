@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
+from linking_pipeline.parameters.defines import Constants, ProductStructures
 
 
 class AggregateGFPMptResults(object):
@@ -54,24 +55,15 @@ class AggregateGFPMptResults(object):
         :return: help data in different types (pd.DataFrame and dict)
         """
         self.Logger.info(f"Read in help data.")
-        # todo move to a central place and use for all scripts as Enum class
-        com_info_16 = {"GFPMpt_Comcode": [78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 90, 91, 92, 93],
-                       "GFPMpt_Comgroup": ["TR", "S", "F", "TR", "TR", "S", "WBP", "WBP", "WBP", "MP", "CP", "TPP",
-                                           "TPP", "TPP", "TPP"],
-                       "GTAP-Sector": ["FRS", "LUM", "BIOE", "FRS", "FRS", "LUM", "LUM", "LUM", "LUM", "PPP", "PPP",
-                                       "PPP", "PPP", "PPP", "PPP"]}
-        com_info_14 = {"GFPMpt_Comcode": [80, 81, 82, 83, 84, 85, 86, 87, 88, 90, 91, 92, 93],
-                       "GFPMpt_Comgroup": ["F", "TR", "TR", "S", "WBP", "WBP", "WBP", "MP", "CP", "TPP",
-                                           "TPP", "TPP", "TPP"],
-                       "GTAP-Sector": ["BIOE", "FRS", "FRS", "LUM", "LUM", "LUM", "LUM", "PPP", "PPP",
-                                       "PPP", "PPP", "PPP", "PPP"]}
-
         gfpmpt_commodities = self.gfpmpt_data['data_periods']['CommodityCode'].unique()
 
-        if len(gfpmpt_commodities) == 16:
-            commodity_key = pd.DataFrame.from_dict(com_info_16)
         if len(gfpmpt_commodities) == 14:
-            commodity_key = pd.DataFrame.from_dict(com_info_14)
+            if self.project == 'BioSDG':
+                commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14_biosdg.value)
+            else:
+                commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14.value)
+        if len(gfpmpt_commodities) == 16:
+            commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16.value)
 
         region_key = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
         region_key = region_key.parse('m_Country')
