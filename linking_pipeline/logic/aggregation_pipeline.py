@@ -58,12 +58,12 @@ class AggregateGFPMptResults(object):
         gfpmpt_commodities = self.gfpmpt_data['data_periods']['CommodityCode'].unique()
 
         if len(gfpmpt_commodities) == 14:
-            if self.project == 'BioSDG':
-                commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14_biosdg.value)
-            else:
-                commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14.value)
+            commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14.value)
         if len(gfpmpt_commodities) == 16:
-            commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16.value)
+            if self.project == 'BioSDG':
+                commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16_biosdg.value)
+            else:
+                commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16.value)
 
         region_key = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
         region_key = region_key.parse('m_Country')
