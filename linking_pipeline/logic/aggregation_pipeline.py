@@ -117,7 +117,7 @@ class AggregateGFPMptResults(object):
                                                                   right_on="GFPMpt_Comcode", how="left")
             sector_production_data = region_production_data.groupby([f"{self.linked_CGE}_{self.project}", "GTAP-Sector",
                                                                      "year"])["quantity"].sum().reset_index()
-        return sector_production_data
+        return sector_production_data, production_data
 
     def agg_price_data(self):
         """
@@ -386,8 +386,9 @@ class AggregateGFPMptResults(object):
 
     def process_io_data(self):
         """
-        tbd
-        :return:
+        Compile data for Input-Output-coefficients and add region and sector information for aggregation to CGE.
+        Production quantities are used for weightings.
+        :return: Complied IO-data stored as a dataframe
         """
 
         period_info = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
@@ -840,7 +841,8 @@ class AggregateGFPMptResults(object):
             )
 
         if 'production' in domains_to_aggregate:
-            Pipeline_Agg.agg_production_data = Pipeline_Agg.aggregate_production_data(intermediate_aggregation=False)
+            (Pipeline_Agg.agg_production_data,
+             Pipeline_Agg.production_data) = Pipeline_Agg.aggregate_production_data(intermediate_aggregation=False)
             Pipeline_Agg.agg_price_data = Pipeline_Agg.agg_price_data()
             Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
             Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(
@@ -960,7 +962,8 @@ class AggregateGFPMptResults(object):
 
             # Test calculations of IOs with quantities (Problem: calculations assume unique output group for each input.
             # This is not the case in the GFPMpt)
-            """Pipeline_Agg.interm_agg_production_data = Pipeline_Agg.aggregate_production_data(
+            """(Pipeline_Agg.interm_agg_production_data,
+             Pipeline_Agg.production_data) = Pipeline_Agg.aggregate_production_data(
                 intermediate_aggregation=True)
             Pipeline_Agg.io_frs_lum = Pipeline_Agg.calc_input_frs_lum(
                 target_data=Pipeline_Agg.interm_agg_production_data,
