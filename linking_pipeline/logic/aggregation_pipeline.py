@@ -689,12 +689,12 @@ class AggregateGFPMptResults(object):
             # other CGE models, following part can be removed or adapted to the new linked model)
             index_info = {
                 '': ['', '', '', 'rdim', 'cdim'],
-                1: ['par', 'rel_quantities', 'rel_quantities!B2', 2, 0],
-                2: ['par', 'rel_prices', 'rel_prices!B2', 2, 0],
-                3: ['par', 'rel_values', 'rel_values!B2', 2, 0],
-                4: ['par', 'abs_quantities',  'abs_quantities!B1', 2, 1],
-                5: ['par', 'abs_prices', 'abs_prices!B1', 2, 1],
-                6: ['par', 'abs_values', 'abs_values!B1', 2, 1]
+                1: ['par', 'rel_quantities', 'rel_quantities!A2', 2, 0],
+                2: ['par', 'rel_prices', 'rel_prices!A2', 2, 0],
+                3: ['par', 'rel_values', 'rel_values!A2', 2, 0],
+                4: ['par', 'abs_quantities',  'abs_quantities!A2', 2, 1],
+                5: ['par', 'abs_prices', 'abs_prices!A2', 2, 1],
+                6: ['par', 'abs_values', 'abs_values!A2', 2, 1]
             }
             index_info = pd.DataFrame.from_dict(data=index_info, orient='index').rename(
                 columns={0: 'Type', 1: 'Name', 2: 'Location', 3: 'Row', 4: 'Column'})
