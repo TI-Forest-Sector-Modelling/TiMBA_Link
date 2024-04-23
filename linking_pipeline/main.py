@@ -30,19 +30,24 @@ class main_linking_pipeline(object):
 
 
 if __name__ == '__main__':
-    pipeline = main_linking_pipeline(current_scenario='reference_scenario_SSP2_mea_elast',
-                                     input_path_gfpmpt='DataContainer_Sc_20240227_Updated_World_2015_only_SSP2_DSp1E_Mea18',
-                                     link_typ='continous',  # Alternatives: 'continous', 'end_point'
-                                     linked_CGE='MAGNET',  # Alternatives: 'DART-BIO', 'MAGNET'
-                                     project='CarbonLeak',    # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
+    pipeline = main_linking_pipeline(current_scenario='reference_scenario_BioSDG_SSP2_2011_FRA',
+                                     input_path_gfpmpt='DataContainer_Sc_20240409_BioSDG_World_2011_SSP2_FRA',
+                                     # Note: Update current_scenario if input_path_gfpmpt is changed
+                                     link_typ='end_point',  # Alternatives: 'continous', 'end_point'
+                                     # Note:
+                                     # If 'continous' GFPMpt results all intermediate periods are processed
+                                     # If 'end_point' GFPMpt results for first and final periods are processed
+                                     linked_CGE='DART-BIO',  # Alternatives: 'DART-BIO', 'MAGNET'
+                                     project='BioSDG_cp',    # Alternatives: 'BioSDG', 'BioSDG_cp', 'CarbonLeak', 'BEPASO'
                                      # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
-                                     aggregation_switch=True,
-                                     disaggregation_switch=False)
+                                     aggregation_switch=True,  # Note: activates aggregation if True
+                                     disaggregation_switch=False  # Note: activates disaggregation if True
+                                     )
 
     if pipeline.aggregation_switch:
         AggregateGFPMptResults.main_aggregation_pipeline(self=pipeline,
-                                                         domains_to_aggregate=['production', 'forest', 'carbon']
-                                                         # Alternatives: 'production', 'forest', 'carbon'
+                                                         domains_to_aggregate=['production', 'forest', 'carbon', 'io']
+                                                         # Alternatives: 'production', 'forest', 'carbon', 'io'
                                                          )
 
     if pipeline.disaggregation_switch:

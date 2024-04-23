@@ -85,16 +85,18 @@ class AggregateGFPMptResults(object):
 
         return region_key, commodity_key, exogenous_change_structure, start_year, end_year
 
-    def agg_production_data(self):
+    def aggregate_production_data(self, intermediate_aggregation: bool):
         """
         Aggregate GFPMpt-data for production to DART-BIO-level in three steps.
         1. step: Aggregate GFPMpt-data for production by summing up supply and manufacturecost (production_data)
         2. step: Aggregate GFPMpt-data for production to DART-BIO-regions (region_production_data)
         3. step: Aggregate GFPMpt-data for production to DART-BIO-sectors (sector_production_data)
+        :param intermediate_aggregation: Flag controlling if intermediate aggregation is included in a separate column
         :return: Aggregated production data to DART-BIO-level (region and sector)
         """
         self.Logger.info(f"Aggregate GFPMpt-data for production to {self.linked_CGE} (region and sector).")
         production_data = self.gfpmpt_data['data_periods']
+        # TODO consider to include trade in calculations
         production_data = production_data[(production_data['domain'] == 'Supply') |
                                           (production_data['domain'] == 'ManufactureCost')]
         production_data = production_data.groupby(["RegionCode", "CommodityCode", "year"]
@@ -102,13 +104,19 @@ class AggregateGFPMptResults(object):
 
         production_data = production_data.merge(self.region_key, left_on="RegionCode", right_on="GFPM_CountryCode",
                                                 how="left").dropna()
+        if intermediate_aggregation:
+            production_data = production_data.merge(self.commodity_key, left_on='CommodityCode',
+                                                    right_on='GFPMpt_Comcode', how='left')
+            sector_production_data = production_data.groupby([f"{self.linked_CGE}_{self.project}", "GFPMpt_Comgroup",
+                                                              "GTAP-Sector", "year"])["quantity"].sum().reset_index()
 
-        region_production_data = production_data.groupby([f"{self.linked_CGE}_{self.project}", "CommodityCode", "year"
-                                                          ])["quantity"].sum().reset_index()
-        region_production_data = region_production_data.merge(self.commodity_key, left_on="CommodityCode",
-                                                              right_on="GFPMpt_Comcode", how="left")
-        sector_production_data = region_production_data.groupby([f"{self.linked_CGE}_{self.project}", "GTAP-Sector",
-                                                                 "year"])["quantity"].sum().reset_index()
+        else:
+            region_production_data = production_data.groupby([f"{self.linked_CGE}_{self.project}", "CommodityCode",
+                                                              "year"])["quantity"].sum().reset_index()
+            region_production_data = region_production_data.merge(self.commodity_key, left_on="CommodityCode",
+                                                                  right_on="GFPMpt_Comcode", how="left")
+            sector_production_data = region_production_data.groupby([f"{self.linked_CGE}_{self.project}", "GTAP-Sector",
+                                                                     "year"])["quantity"].sum().reset_index()
         return sector_production_data
 
     def agg_price_data(self):
@@ -290,6 +298,312 @@ class AggregateGFPMptResults(object):
 
         return region_carbon_biomass, region_carbon_hwp
 
+    def calc_input_frs_lum(self, target_data: pd.DataFrame, start_year: int):
+        """
+        Calculate the input of frs (total roundwood production) in total amout of lum (sawnwood and wood-based panels)
+        based on production data.
+        :param target_data: aggregated GFPMpt-production data
+        :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
+        :return pd.DataFrame: Input frs in lum
+        """
+        self.Logger.info(f"Calculate input of frs (TR)  in lum (WBP and S).")
+        year = start_year
+        df_io = pd.DataFrame(target_data[target_data['GFPMpt_Comgroup'] == 'S'].reset_index(
+            drop=True)[f'{self.linked_CGE}_{self.project}'])
+        df_io['Input_Output'] = ['frs in lum'] * len(df_io)
+        for period_key in self.exogenous_change_structure.keys():
+            period_length = self.exogenous_change_structure[period_key][1]
+
+            lum_output = (target_data[target_data['GFPMpt_Comgroup'] == 'S'][year].reset_index(drop=True) +
+                          target_data[target_data['GFPMpt_Comgroup'] == 'WBP'][year].reset_index(drop=True))
+
+            frs_input = target_data[target_data['GFPMpt_Comgroup'] == 'TR'][year].reset_index(drop=True)
+            # TODO remove 82 from calculation of io as commodity is not used for further processing, Provide information
+            #  about share of fuelwood in FRS
+            io = pd.DataFrame(lum_output / frs_input)
+            df_io = pd.concat([df_io, io], axis=1)
+            year += period_length
+
+        return df_io
+
+    def calc_input_frs_ppp(self, target_data: pd.DataFrame, start_year: int):
+        """
+        Calculate the input of frs (total roundwood production) in total amout of ppp (mechanical and chemical pulp)
+        based on production data.
+        :param target_data: aggregated GFPMpt-production data
+        :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
+        :return pd.DataFrame: Input frs in lum
+        """
+        self.Logger.info(f"Calculate input of frs (TR)  in ppp (CP and MP).")
+        year = start_year
+        df_io = pd.DataFrame(
+            target_data[target_data['GFPMpt_Comgroup'] == 'CP'].reset_index(
+                drop=True)[f'{self.linked_CGE}_{self.project}'])
+        df_io['Input_Output'] = ['frs in ppp'] * len(df_io)
+        for period_key in self.exogenous_change_structure.keys():
+            period_length = self.exogenous_change_structure[period_key][1]
+
+            ppp_output = (target_data[target_data['GFPMpt_Comgroup'] == 'CP'][year].reset_index(drop=True) +
+                          target_data[target_data['GFPMpt_Comgroup'] == 'MP'][year].reset_index(drop=True))
+
+            frs_input = target_data[target_data['GFPMpt_Comgroup'] == 'TR'][year].reset_index(drop=True)
+            # TODO remove 82 from calculation of io as commodity is not used for further processing, Provide information
+            #  about share of fuelwood in FRS
+            io = pd.DataFrame(ppp_output / frs_input)
+            df_io = pd.concat([df_io, io], axis=1)
+            year += period_length
+
+        return df_io
+
+    def calc_input_ppp_ppp(self, target_data: pd.DataFrame, start_year: int):
+        """
+        Calculate the input of frs (total roundwood production) in total amout of ppp (mechanical and chemical pulp)
+        based on production data.
+        :param target_data: aggregated GFPMpt-production data
+        :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
+        :return pd.DataFrame: Input frs in lum
+        """
+        self.Logger.info(f"Calculate input of frs (TR)  in ppp (CP and MP).")
+        year = start_year
+        df_io = pd.DataFrame(
+            target_data[target_data['GFPMpt_Comgroup'] == 'CP'].reset_index(
+                drop=True)[f'{self.linked_CGE}_{self.project}'])
+        df_io['Input_Output'] = ['frs in ppp'] * len(df_io)
+        for period_key in self.exogenous_change_structure.keys():
+            period_length = self.exogenous_change_structure[period_key][1]
+
+            ppp_output = (target_data[target_data['GFPMpt_Comgroup'] == 'CP'][year].reset_index(drop=True) +
+                          target_data[target_data['GFPMpt_Comgroup'] == 'MP'][year].reset_index(drop=True))
+
+            frs_input = target_data[target_data['GFPMpt_Comgroup'] == 'TR'][year].reset_index(drop=True)
+            # TODO remove 82 from calculation of io as commodity is not used for further processing, Provide information
+            #  about share of fuelwood in FRS
+            io = pd.DataFrame(ppp_output / frs_input)
+            df_io = pd.concat([df_io, io], axis=1)
+            year += period_length
+
+        return df_io
+
+    def process_io_data(self):
+        """
+        tbd
+        :return:
+        """
+
+        period_info = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        io_data = self.gfpmpt_data['ManufactureCoeff']
+        io_data = io_data.merge(period_info, left_on='Period', right_on='Period', how='left')
+        io_data = io_data.merge(self.commodity_key,
+                                left_on='InputCommodity',
+                                right_on='GFPMpt_Comcode',
+                                how='left').rename(columns={'GFPMpt_Comgroup': 'Input_Comgroup'})
+
+        io_data = io_data.merge(self.commodity_key,
+                                left_on='OutputCommodity',
+                                right_on='GFPMpt_Comcode',
+                                how='left').rename(columns={'GFPMpt_Comgroup': 'Output_Comgroup'})
+
+        production_data = self.gfpmpt_data['data_periods']
+        # TODO consider to include trade in calculations
+        production_data = production_data[(production_data['domain'] == 'Supply') |
+                                          (production_data['domain'] == 'ManufactureCost')]
+        production_data = production_data.groupby(['RegionCode', 'CommodityCode', 'year']
+                                                  )['quantity'].sum().reset_index()
+        # TODO test with production data for InputCommodity
+        """io_data = io_data.merge(production_data,
+                                left_on=['RegionCode', 'year', 'InputCommodity'],
+                                right_on=['RegionCode', 'year', 'CommodityCode'],
+                                how='left')"""
+        # TODO test with production data for OutputCommodity
+        io_data = io_data.merge(production_data,
+                                left_on=['RegionCode', 'year', 'OutputCommodity'],
+                                right_on=['RegionCode', 'year', 'CommodityCode'],
+                                how='left')
+
+        io_data = io_data[['RegionCode', 'CommodityCode_x', 'Period', 'year', 'InputCommodity', 'OutputCommodity',
+                           'Input_Comgroup', 'Output_Comgroup', 'ManuFakt', 'quantity']]
+
+        io_data['quantity'].fillna(0, inplace=True)
+
+        return io_data
+
+    def calc_io_frs_lum(self, weighted_io: bool):
+        """
+        Calculates the Input-Output-coefficients (IOs) for FRS to produce LUM. IOs for each sector are calculated as the
+        average of all composing products for each country. IOs for each CGE region is calculated as the average of all
+        composing countries. Sector and region averages can be weighted with the production quantity to account for
+        market relevance of each country and product.
+        :param weighted_io: Flag to activate weighted averages for IO calculations.
+        :return: Calculated IOs for FRS-LUM as a new dataframe
+        """
+        io_data = self.io_data
+        io_frs_lum = io_data[(io_data['Input_Comgroup'] == 'TR') &
+                             ([x in ['S', 'WBP'] for x in io_data['Output_Comgroup']])].reset_index(drop=True)
+        io_frs_lum = io_frs_lum[io_frs_lum['ManuFakt'] != 0].reset_index(drop=True)
+        io_frs_lum['weighted_ManuFakt'] = io_frs_lum['ManuFakt'] * io_frs_lum['quantity']
+        io_frs_lum['io'] = ['io_frs_lum'] * len(io_frs_lum)
+
+        if weighted_io:
+            # Weighted averages for products to sectors
+            sector_weight_mean = io_frs_lum.groupby(
+                ['RegionCode', 'year', 'io'])['quantity'].sum().reset_index()
+            sector_weighted_ManuFakt_mean = io_frs_lum.groupby(
+                ['RegionCode', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+            sector_weighted_io = sector_weighted_ManuFakt_mean['weighted_ManuFakt'] / sector_weight_mean['quantity']
+            sector_weighted_io = pd.DataFrame(sector_weighted_io).rename(columns={0: 'ManuFakt'})
+            io_info = sector_weight_mean[['RegionCode', 'year', 'io']]
+            io_frs_lum = pd.concat([io_info, sector_weighted_io, sector_weight_mean['quantity']], axis=1)
+
+            # Weighted averages for countries to regions
+            io_frs_lum = io_frs_lum.merge(self.region_key,
+                                          left_on='RegionCode',
+                                          right_on='GFPM_CountryCode',
+                                          how='left')
+            io_frs_lum['weighted_ManuFakt'] = io_frs_lum['ManuFakt'] * io_frs_lum['quantity']
+            region_weight_mean = io_frs_lum.groupby(
+                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['quantity'].sum().reset_index()
+            region_weighted_ManuFakt_mean = io_frs_lum.groupby(
+                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+
+            region_weighted_io = region_weighted_ManuFakt_mean['weighted_ManuFakt'] / region_weight_mean['quantity']
+            region_weighted_io = pd.DataFrame(region_weighted_io).rename(columns={0: 'ManuFakt'})
+            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'io']]
+            io_frs_lum = pd.concat([io_info, region_weighted_io], axis=1)
+
+        else:
+            # Average IOs for sectors in each country
+            io_frs_lum = io_frs_lum.groupby(['RegionCode', 'year', 'io'])['ManuFakt'].mean().reset_index()
+
+            # Average IOs for sectors in each regions
+            io_frs_lum = io_frs_lum.merge(self.region_key,
+                                          left_on='RegionCode',
+                                          right_on='GFPM_CountryCode',
+                                          how='left')
+            io_frs_lum = io_frs_lum.groupby([f'{self.linked_CGE}_{self.project}', 'io', 'year']).mean().reset_index()
+
+        return io_frs_lum
+
+    def calc_io_frs_ppp(self, weighted_io: bool):
+        """
+        Calculates the Input-Output-coefficients (IOs) for FRS to produce PPP. IOs for each sector are calculated as the
+        average of all composing products for each country. IOs for each CGE region is calculated as the average of all
+        composing countries. Sector and region averages can be weighted with the production quantity to account for
+        market relevance of each country and product.
+        :param weighted_io: Flag to activate weighted averages for IO calculations.
+        :return: Calculated IOs for FRS-PPP as a new dataframe
+        """
+        io_data = self.io_data
+        io_frs_ppp = io_data[(io_data['Input_Comgroup'] == 'TR') &
+                             ([x in ['CP', 'MP'] for x in io_data['Output_Comgroup']])].reset_index(drop=True)
+        io_frs_ppp = io_frs_ppp[io_frs_ppp['ManuFakt'] != 0].reset_index(drop=True)
+        io_frs_ppp['weighted_ManuFakt'] = io_frs_ppp['ManuFakt'] * io_frs_ppp['quantity']
+        io_frs_ppp['io'] = ['io_frs_ppp'] * len(io_frs_ppp)
+
+        if weighted_io:
+            # Weighted averages for products to sectors
+            sector_weight_mean = io_frs_ppp.groupby(
+                ['RegionCode', 'year', 'io'])['quantity'].sum().reset_index()
+            sector_weighted_ManuFakt_mean = io_frs_ppp.groupby(
+                ['RegionCode', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+            sector_weighted_io = sector_weighted_ManuFakt_mean['weighted_ManuFakt'] / sector_weight_mean['quantity']
+            sector_weighted_io = pd.DataFrame(sector_weighted_io).rename(columns={0: 'ManuFakt'})
+            io_info = sector_weight_mean[['RegionCode', 'year', 'io']]
+            io_frs_ppp = pd.concat([io_info, sector_weighted_io, sector_weight_mean['quantity']], axis=1)
+
+            # Weighted averages for countries to regions
+            io_frs_ppp = io_frs_ppp.merge(self.region_key,
+                                          left_on='RegionCode',
+                                          right_on='GFPM_CountryCode',
+                                          how='left')
+            io_frs_ppp['weighted_ManuFakt'] = io_frs_ppp['ManuFakt'] * io_frs_ppp['quantity']
+            region_weight_mean = io_frs_ppp.groupby(
+                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['quantity'].sum().reset_index()
+            region_weighted_ManuFakt_mean = io_frs_ppp.groupby(
+                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+
+            region_weighted_io = region_weighted_ManuFakt_mean['weighted_ManuFakt'] / region_weight_mean['quantity']
+            region_weighted_io = pd.DataFrame(region_weighted_io).rename(columns={0: 'ManuFakt'})
+            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'io']]
+            io_frs_ppp = pd.concat([io_info, region_weighted_io], axis=1)
+
+        else:
+            # Average IOs for sectors in each country
+            io_frs_ppp = io_frs_ppp.groupby(['RegionCode', 'year', 'io'])['ManuFakt'].mean().reset_index()
+
+            # Average IOs for sectors in each regions
+            io_frs_ppp = io_frs_ppp.merge(self.region_key,
+                                          left_on='RegionCode',
+                                          right_on='GFPM_CountryCode',
+                                          how='left')
+
+            io_frs_ppp = io_frs_ppp.groupby([f'{self.linked_CGE}_{self.project}', 'io', 'year']).mean().reset_index()
+
+        return io_frs_ppp
+
+    def calc_io_ppp_ppp(self, weighted_io: bool):
+        """
+        Calculates the Input-Output-coefficients (IOs) for PPP to produce PPP. IOs for each sector are calculated as the
+        average of all composing products for each country. IOs for each CGE region is calculated as the average of all
+        composing countries. Sector and region averages can be weighted with the production quantity to account for
+        market relevance of each country and product.
+        :param weighted_io: Flag to activate weighted averages for IO calculations.
+        :return: Calculated IOs for PPP-PPP as a new dataframe
+        """
+        io_data = self.io_data
+        io_ppp_ppp = io_data[([x in ['CP', 'MP', 'TPP'] for x in io_data['Input_Comgroup']]) &
+                             (io_data['Output_Comgroup'] == 'TPP')].reset_index(drop=True)
+        io_ppp_ppp = io_ppp_ppp[io_ppp_ppp['ManuFakt'] != 0].reset_index(drop=True)
+        io_ppp_ppp['weighted_ManuFakt'] = io_ppp_ppp['ManuFakt'] * io_ppp_ppp['quantity']
+        io_ppp_ppp['io'] = ['io_ppp_ppp'] * len(io_ppp_ppp)
+
+        if weighted_io:
+            # Weighted averages for products to sectors
+            sector_weight_mean = io_ppp_ppp.groupby(
+                ['RegionCode', 'year', 'io'])['quantity'].sum().reset_index()
+            sector_weighted_ManuFakt_mean = io_ppp_ppp.groupby(
+                ['RegionCode', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+            sector_weighted_io = sector_weighted_ManuFakt_mean['weighted_ManuFakt'] / sector_weight_mean['quantity']
+            sector_weighted_io = pd.DataFrame(sector_weighted_io).rename(columns={0: 'ManuFakt'})
+            io_info = sector_weight_mean[['RegionCode', 'year', 'io']]
+            io_ppp_ppp = pd.concat([io_info, sector_weighted_io, sector_weight_mean['quantity']], axis=1)
+
+            # Weighted averages for countries to regions
+            io_ppp_ppp = io_ppp_ppp.merge(self.region_key,
+                                          left_on='RegionCode',
+                                          right_on='GFPM_CountryCode',
+                                          how='left')
+            io_ppp_ppp['weighted_ManuFakt'] = io_ppp_ppp['ManuFakt'] * io_ppp_ppp['quantity']
+            region_weight_mean = io_ppp_ppp.groupby(
+                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['quantity'].sum().reset_index()
+            region_weighted_ManuFakt_mean = io_ppp_ppp.groupby(
+                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+
+            region_weighted_io = region_weighted_ManuFakt_mean['weighted_ManuFakt'] / region_weight_mean['quantity']
+            region_weighted_io = pd.DataFrame(region_weighted_io).rename(columns={0: 'ManuFakt'})
+            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'io']]
+            io_ppp_ppp = pd.concat([io_info, region_weighted_io], axis=1)
+
+        else:
+            # Average IOs for sectors in each country
+            io_ppp_ppp = io_ppp_ppp.groupby(['RegionCode', 'year', 'io'])['ManuFakt'].mean().reset_index()
+
+            # Average IOs for sectors in each regions
+            io_ppp_ppp = io_ppp_ppp.merge(self.region_key,
+                                          left_on='RegionCode',
+                                          right_on='GFPM_CountryCode',
+                                          how='left')
+
+            io_ppp_ppp = io_ppp_ppp.groupby([f'{self.linked_CGE}_{self.project}', 'io', 'year']).mean().reset_index()
+
+        return io_ppp_ppp
+
+    def merge_io_data(self):
+        io_data_merged = pd.concat([self.io_data_frs_lum,
+                                    self.io_data_frs_ppp,
+                                    self.io_data_ppp_ppp], axis=0).reset_index(drop=True)
+
+        return io_data_merged
+
     def reformate_gfpmpt_data(self, target_data: pd.DataFrame, col_name: str, start_year: int):
         """
         Reformate GFPMpt-data to save aggregated data for each considered year in a separate column.
@@ -299,8 +613,14 @@ class AggregateGFPMptResults(object):
         :return pd.DataFrame: Reformated target_data
         """
         self.Logger.info(f'Reformate GFPMpt-Data to prepare growth rate calculations.')
-        if 'GTAP-Sector' in target_data.columns:
+        if 'GFPMpt_Comgroup' in target_data.columns:
+            selected_col = [f'{self.linked_CGE}_{self.project}', 'GFPMpt_Comgroup', 'GTAP-Sector', f'{col_name}']
+
+        elif ('GTAP-Sector' in target_data.columns) & ('GFPMpt_Comgroup' not in target_data.columns):
             selected_col = [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', f'{col_name}']
+
+        elif 'io' in target_data.columns:
+            selected_col = [f'{self.linked_CGE}_{self.project}', 'io', f'{col_name}']
 
         else:
             selected_col = [f'{self.linked_CGE}_{self.project}', f'{col_name}']
@@ -331,6 +651,8 @@ class AggregateGFPMptResults(object):
         self.Logger.info(f'Calculate growth rate {target_data}.')
         if 'GTAP-Sector' in target_data.columns:
             selected_col = [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', start_year]
+        elif 'io' in target_data.columns:
+            selected_col = [f'{self.linked_CGE}_{self.project}', 'io', start_year]
         else:
             selected_col = [f'{self.linked_CGE}_{self.project}', start_year]
 
@@ -480,6 +802,33 @@ class AggregateGFPMptResults(object):
         self.growth_carbon_hwp.to_excel(writer_carbon_data, sheet_name='rel_carbon_stock_hwp', index=False)
         writer_carbon_data.save()
 
+    def generate_output_file_io(self):
+        """
+        Generate Excel-Output-file storing all aggregated IO-related GFPMpt data and calculated growth rates.
+        """
+        self.Logger.info(f'Save aggregated io related GFPMpt data in Excel-file.')
+        # Excel-Writer
+        writer_io_data = pd.ExcelWriter(
+            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
+            engine='xlsxwriter')
+
+        # Generate info-sheet
+        data_info = {
+            'Title': ['Aggregated input-output coefficients', ],
+            'Project': [f'{self.project}', ],
+            'Linked CGE': [f'{self.linked_CGE}', ],
+            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Scenario': [f'{self.current_scenario}', ],
+            'Date': [f'{self.current_dt}', ],
+            'abs_io_data': [f'necessary input to produce one unit of output', 'non'],
+            'rel_io_data': [f'Relative changes in input-output coefficients', '[yearly %-changes]'],
+        }
+        data_info = pd.DataFrame.from_dict(data=data_info, orient='index').rename(columns={0: 'Metadata', 1: 'Units'})
+        data_info.to_excel(writer_io_data, sheet_name='Metadata')
+        self.io_data_agg.to_excel(writer_io_data, sheet_name='abs_io_data', index=False)
+        self.growth_io_data.to_excel(writer_io_data, sheet_name='rel_io_data', index=False)
+        writer_io_data.save()
+
     def main_aggregation_pipeline(self, domains_to_aggregate: list):
         Pipeline_Agg = AggregateGFPMptResults(
             current_scenario=self.current_scenario,
@@ -491,7 +840,7 @@ class AggregateGFPMptResults(object):
             )
 
         if 'production' in domains_to_aggregate:
-            Pipeline_Agg.agg_production_data = Pipeline_Agg.agg_production_data()
+            Pipeline_Agg.agg_production_data = Pipeline_Agg.aggregate_production_data(intermediate_aggregation=False)
             Pipeline_Agg.agg_price_data = Pipeline_Agg.agg_price_data()
             Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
             Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(
@@ -587,5 +936,40 @@ class AggregateGFPMptResults(object):
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.generate_output_file_carbon()
+
+        if 'io' in domains_to_aggregate:
+
+            Pipeline_Agg.io_data = Pipeline_Agg.process_io_data()
+            Pipeline_Agg.io_data_frs_lum = Pipeline_Agg.calc_io_frs_lum(weighted_io=True)
+            Pipeline_Agg.io_data_frs_ppp = Pipeline_Agg.calc_io_frs_ppp(weighted_io=True)
+            Pipeline_Agg.io_data_ppp_ppp = Pipeline_Agg.calc_io_ppp_ppp(weighted_io=True)
+            Pipeline_Agg.io_data_agg = Pipeline_Agg.merge_io_data()
+
+            Pipeline_Agg.io_data_agg = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.io_data_agg,
+                col_name='ManuFakt',
+                start_year=Pipeline_Agg.start_year)
+
+            Pipeline_Agg.growth_io_data = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.io_data_agg,
+                                                                        start_year=Pipeline_Agg.start_year,
+                                                                        end_year=Pipeline_Agg.end_year,
+                                                                        link_type=Pipeline_Agg.link_typ)
+
+            Pipeline_Agg.generate_output_file_io()
+
+
+            # Test calculations of IOs with quantities (Problem: calculations assume unique output group for each input.
+            # This is not the case in the GFPMpt)
+            """Pipeline_Agg.interm_agg_production_data = Pipeline_Agg.aggregate_production_data(
+                intermediate_aggregation=True)
+            Pipeline_Agg.io_frs_lum = Pipeline_Agg.calc_input_frs_lum(
+                target_data=Pipeline_Agg.interm_agg_production_data,
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.io_frs_ppp = Pipeline_Agg.calc_input_frs_ppp(
+                target_data=Pipeline_Agg.interm_agg_production_data,
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.io_ppp_ppp = Pipeline_Agg.calc_input_ppp_ppp(
+                target=Pipeline_Agg.interm_agg_production_data,
+                start_year=Pipeline_Agg.start_year)"""
 
         Pipeline_Agg.Logger.info(f'This link is unbreakable.')
