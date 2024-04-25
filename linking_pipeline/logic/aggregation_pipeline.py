@@ -95,15 +95,25 @@ class AggregateGFPMptResults(object):
         :return: Aggregated production data to DART-BIO-level (region and sector)
         """
         self.Logger.info(f"Aggregate GFPMpt-data for production to {self.linked_CGE} (region and sector).")
-        production_data = self.gfpmpt_data['data_periods']
+        gfpm_data = self.gfpmpt_data['data_periods']
         # TODO consider to include trade in calculations
-        production_data = production_data[(production_data['domain'] == 'Supply') |
-                                          (production_data['domain'] == 'ManufactureCost')]
+        production_data = gfpm_data[(gfpm_data['domain'] == 'Supply') |
+                                    (gfpm_data['domain'] == 'ManufactureCost')]
         production_data = production_data.groupby(["RegionCode", "CommodityCode", "year"]
                                                   )["quantity"].sum().reset_index()
 
+        export_data = gfpm_data[gfpm_data['domain'] == 'TransportationExport']
+        import_data = gfpm_data[gfpm_data['domain'] == 'TransportationImport']
+        export_data = export_data.sort_values(by=['RegionCode', 'CommodityCode', 'year'],
+                                              ascending=True).reset_index(drop=True)
+        import_data = import_data.sort_values(by=['RegionCode', 'CommodityCode', 'year'],
+                                              ascending=True).reset_index(drop=True)
+
+        production_data['quantity'] = production_data['quantity'] + import_data['quantity'] - export_data['quantity']
+
         production_data = production_data.merge(self.region_key, left_on="RegionCode", right_on="GFPM_CountryCode",
                                                 how="left").dropna()
+
         if intermediate_aggregation:
             production_data = production_data.merge(self.commodity_key, left_on='CommodityCode',
                                                     right_on='GFPMpt_Comcode', how='left')
@@ -118,6 +128,34 @@ class AggregateGFPMptResults(object):
             sector_production_data = region_production_data.groupby([f"{self.linked_CGE}_{self.project}", "GTAP-Sector",
                                                                      "year"])["quantity"].sum().reset_index()
         return sector_production_data, production_data
+
+    def share_energy_material_use(self):
+        production_data = self.production_data
+        production_data = production_data.sort_values(by=['year', 'RegionCode'], ascending=True).reset_index(drop=True)
+        share_of_fuelwood = self.gfpmpt_data['Forest']['FuelwoodForest']
+        production_data['quantity'] = production_data['quantity'] * share_of_fuelwood
+
+        fuelwood_production_data = production_data[production_data['CommodityCode'] == 80].reset_index(drop=True)
+        fuelwood_production_data = fuelwood_production_data.groupby([
+            f'{self.linked_CGE}_{self.project}', 'CommodityCode', 'year'])['quantity'].sum().reset_index()
+
+        region_production_data = production_data.groupby([f"{self.linked_CGE}_{self.project}", "CommodityCode",
+                                                          "year"])["quantity"].sum().reset_index()
+
+        region_production_data = region_production_data.merge(self.commodity_key, left_on="CommodityCode",
+                                                              right_on="GFPMpt_Comcode", how="left")
+        sector_production_data = region_production_data.groupby([f"{self.linked_CGE}_{self.project}", "GTAP-Sector",
+                                                                 "year"])["quantity"].sum().reset_index()
+
+        sector_production_data = sector_production_data[
+            sector_production_data['GTAP-Sector'] == 'FRS'].reset_index(drop=True)
+
+        info_data = fuelwood_production_data[[f'{self.linked_CGE}_{self.project}', 'year']]
+        share_energy_use = fuelwood_production_data['quantity'] / sector_production_data['quantity']
+        share_energy_use = pd.concat([info_data, share_energy_use], axis=1).rename(
+            columns={'quantity': 'share_energy_use'})
+
+        return share_energy_use
 
     def agg_price_data(self):
         """
@@ -404,12 +442,19 @@ class AggregateGFPMptResults(object):
                                 right_on='GFPMpt_Comcode',
                                 how='left').rename(columns={'GFPMpt_Comgroup': 'Output_Comgroup'})
 
-        production_data = self.gfpmpt_data['data_periods']
+        gfpm_data = self.gfpmpt_data['data_periods']
         # TODO consider to include trade in calculations
-        production_data = production_data[(production_data['domain'] == 'Supply') |
-                                          (production_data['domain'] == 'ManufactureCost')]
+        production_data = gfpm_data[(gfpm_data['domain'] == 'Supply') |
+                                    (gfpm_data['domain'] == 'ManufactureCost')]
+
         production_data = production_data.groupby(['RegionCode', 'CommodityCode', 'year']
                                                   )['quantity'].sum().reset_index()
+
+        export_data = gfpm_data[gfpm_data['domain'] == 'TransportationExport'].reset_index(drop=True)
+        import_data = gfpm_data[gfpm_data['domain'] == 'TransportationImport'].reset_index(drop=True)
+
+        production_data['quantity'] = production_data['quantity'] + import_data['quantity'] - export_data['quantity']
+
         # TODO test with production data for InputCommodity
         """io_data = io_data.merge(production_data,
                                 left_on=['RegionCode', 'year', 'InputCommodity'],
@@ -692,9 +737,11 @@ class AggregateGFPMptResults(object):
                 1: ['par', 'rel_quantities', 'rel_quantities!A2', 2, 0],
                 2: ['par', 'rel_prices', 'rel_prices!A2', 2, 0],
                 3: ['par', 'rel_values', 'rel_values!A2', 2, 0],
-                4: ['par', 'abs_quantities',  'abs_quantities!A2', 2, 1],
-                5: ['par', 'abs_prices', 'abs_prices!A2', 2, 1],
-                6: ['par', 'abs_values', 'abs_values!A2', 2, 1]
+                4: ['par', 'rel_share_energy_use', 'rel_share_energy_use!A2', 2, 0],
+                5: ['par', 'abs_quantities',  'abs_quantities!A2', 2, 1],
+                6: ['par', 'abs_prices', 'abs_prices!A2', 2, 1],
+                7: ['par', 'abs_values', 'abs_values!A2', 2, 1],
+                8: ['par', 'abs_share_energy_use', 'abs_share_energy_use!A2', 2, 1]
             }
             index_info = pd.DataFrame.from_dict(data=index_info, orient='index').rename(
                 columns={0: 'Type', 1: 'Name', 2: 'Location', 3: 'Row', 4: 'Column'})
@@ -713,7 +760,9 @@ class AggregateGFPMptResults(object):
             'abs_prices': [f'Absolute projected prices', '[monetary unit/volume unit]'],
             'rel_prices': [f'Relative changes in projected prices', '[yearly %-changes]'],
             'abs_values': [f'Absolute projected values', '[monetary unit]'],
-            'rel_values': [f'Relative changes in projected values', '[yearly %-changes]']
+            'rel_values': [f'Relative changes in projected values', '[yearly %-changes]'],
+            'abs_share_energy': [f'Absolute shares of FRS for energy use', '[%]'],
+            'rel_share_energy': [f'Relative changes in shares of FRS for energy use', '[yearly %-changes]'],
         }
         output_info = pd.DataFrame.from_dict(data=output_info, orient='index').rename(columns={0: 'Metadata',
                                                                                                1: 'Units'})
@@ -727,6 +776,9 @@ class AggregateGFPMptResults(object):
 
         self.agg_value_data.to_excel(writer_agg_data, sheet_name='abs_values', index=False)
         self.growth_rate_value_data.to_excel(writer_agg_data, sheet_name='rel_values', index=False)
+
+        self.share_energy_use.to_excel(writer_agg_data, sheet_name='abs_share_energy', index=False)
+        self.growth_share_energy_use.to_excel(writer_agg_data, sheet_name='rel_share_energy', index=False)
 
         writer_agg_data.save()
 
@@ -845,6 +897,8 @@ class AggregateGFPMptResults(object):
              Pipeline_Agg.production_data) = Pipeline_Agg.aggregate_production_data(intermediate_aggregation=False)
             Pipeline_Agg.agg_price_data = Pipeline_Agg.agg_price_data()
             Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
+            Pipeline_Agg.share_energy_use = Pipeline_Agg.share_energy_material_use()
+
             Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(
                 target_data=Pipeline_Agg.agg_production_data,
                 col_name='quantity',
@@ -856,6 +910,10 @@ class AggregateGFPMptResults(object):
             Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_gfpmpt_data(
                 target_data=Pipeline_Agg.agg_value_data,
                 col_name='value',
+                start_year=Pipeline_Agg.start_year)
+            Pipeline_Agg.share_energy_use = Pipeline_Agg.reformate_gfpmpt_data(
+                target_data=Pipeline_Agg.share_energy_use,
+                col_name='share_energy_use',
                 start_year=Pipeline_Agg.start_year)
             Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(
                 target_data=Pipeline_Agg.agg_price_data,
@@ -869,6 +927,11 @@ class AggregateGFPMptResults(object):
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(
                 target_data=Pipeline_Agg.agg_production_data,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_share_energy_use = Pipeline_Agg.calc_growth_rate(
+                target_data=Pipeline_Agg.share_energy_use,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
@@ -958,7 +1021,6 @@ class AggregateGFPMptResults(object):
                                                                         link_type=Pipeline_Agg.link_typ)
 
             Pipeline_Agg.generate_output_file_io()
-
 
             # Test calculations of IOs with quantities (Problem: calculations assume unique output group for each input.
             # This is not the case in the GFPMpt)
