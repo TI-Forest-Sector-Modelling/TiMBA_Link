@@ -9,7 +9,9 @@
 import pandas as pd
 import numpy as np
 import os
+import shutil
 from pathlib import Path
+from openpyxl import load_workbook
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures
@@ -36,8 +38,9 @@ class DisaggregateCGEResults(object):
         self.linked_CGE = linked_CGE
         self.project = project
         self.cge_data, self.gfpmpt_data = DisaggregateCGEResults.readin_model_data(self)
-        (self.region_key, self.commodity_key, self.oecd_data, self.worldbank_data, self.exogenous_change_structure,
-         self.start_year, self.end_year, self.year_for_avg) = DisaggregateCGEResults.readin_help_data(self)
+        (self.region_key, self.region_key_gfpm, self.commodity_key, self.oecd_data, self.worldbank_data,
+         self.exogenous_change_structure, self.start_year, self.end_year, self.year_for_avg
+         ) = DisaggregateCGEResults.readin_help_data(self)
 
     def readin_model_data(self):
         """
@@ -124,19 +127,21 @@ class DisaggregateCGEResults(object):
             worldbank_data_collector['gdp'] = worldbank_gdp_data
             worldbank_data_collector['pop'] = worldbank_pop_data
 
-            region_key = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
-            region_key = region_key.parse('m_Country')
-            region_key = region_key[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}', 'ISO-Code']]
+            region_key_gfpm = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
+            region_key_gfpm = region_key_gfpm.parse('m_Country')
+            region_key_gfpm = region_key_gfpm[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
+                                               'ISO-Code']]
 
             region_oecd_worldbank = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_oecd_countries.xlsx')
             region_oecd_worldbank = region_oecd_worldbank.parse('Country_codes').dropna()
 
-            region_key_test = region_key.merge(region_oecd_worldbank, left_on="ISO-Code", right_on="Worldbank_Ccodes",
-                                               how="left").dropna().reset_index(drop=True)
-            region_key_test = region_key_test[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
-                                               'ISO-Code', 'OECD_Ccodes']]
+            region_key_all = region_key_gfpm.merge(region_oecd_worldbank, left_on="ISO-Code",
+                                                   right_on="Worldbank_Ccodes", how="left"
+                                                   ).dropna().reset_index(drop=True)
+            region_key_all = region_key_all[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
+                                             'ISO-Code', 'OECD_Ccodes']]
 
-            return (region_key_test, commodity_key, oecd_data_collector, worldbank_data_collector,
+            return (region_key_all, region_key_gfpm, commodity_key, oecd_data_collector, worldbank_data_collector,
                     exogenous_change_structure, start_year, end_year, years_for_average)
 
         else:
@@ -295,6 +300,102 @@ class DisaggregateCGEResults(object):
 
         return growth_rate
 
+    def update_exogChange(self):
+        """
+        Updates exogChange-sheet in specified World-file for GFPMpt with:
+        - New annual growth rates for GDP (for demand and supply)
+        - New annual growth rates for GDP per capita (for forest)
+        Updated World input file is saved in Output.
+        Notice: New World-file is readable for GFPMpt only not for original GFPM.
+        """
+        self.Logger.info(f"Update World-file (ExogChange-sheet) with disaggregate Data.")
+        world_to_update = pd.ExcelFile(f'{self.sfile}\\data\\input\\{self.input_world}.xlsx')
+        new_ExogChange = world_to_update.parse('ExogChange')
+        filter_col = new_ExogChange.columns[0]
+        slicing_index = new_ExogChange[new_ExogChange[filter_col] == "="].index[1] + 1
+        ExogChange_description = new_ExogChange.iloc[:slicing_index]
+        ExogChange_data = new_ExogChange.iloc[slicing_index:].reset_index(drop=True)
+        period_index = ExogChange_data[ExogChange_data[filter_col].str.contains('PERIOD')].index  # [0:4]
+        period_data_length = (period_index[1] - period_index[0]) - 1
+
+        ExoChange_data_updated = pd.DataFrame()
+
+        year = self.start_year
+        for index, key in zip(period_index, self.exogenous_change_structure):
+            period_length = self.exogenous_change_structure[key][1]
+            year = year + period_length
+            temp_ExogChange = ExogChange_data.loc[index:index + period_data_length]
+            index_demand = temp_ExogChange[temp_ExogChange[filter_col] == 'D'].index
+            index_supply = temp_ExogChange[(temp_ExogChange[filter_col] == 'S') &
+                                           (temp_ExogChange['Unnamed: 9'] != -1)].index
+            index_forest = temp_ExogChange[temp_ExogChange[filter_col] == 'F'].index
+
+            reformated_growth_rate_gdp = self.region_key_gfpm.merge(
+                self.growth_rate_gdp[['GFPM_CountryCode', f'{year}']],
+                left_on='GFPM_CountryCode',
+                right_on='GFPM_CountryCode', how='left')
+            reformated_growth_rate_gdp = reformated_growth_rate_gdp[['GFPM_CountryCode', f'{year}']].fillna(0)
+            reformated_growth_rate_gdp = reformated_growth_rate_gdp[
+                reformated_growth_rate_gdp['GFPM_CountryCode'] != '--'].reset_index(drop=True)
+            reformated_growth_rate_gdp_demand = temp_ExogChange[
+                temp_ExogChange[filter_col] == 'D'].merge(reformated_growth_rate_gdp,
+                                                          left_on='Unnamed: 1',
+                                                          right_on='GFPM_CountryCode',
+                                                          how='left')
+
+            reformated_growth_rate_gdp_supply = temp_ExogChange[
+                (temp_ExogChange[filter_col] == 'S') &
+                (temp_ExogChange['Unnamed: 9'] != -1)].merge(reformated_growth_rate_gdp,
+                                                             left_on='Unnamed: 1',
+                                                             right_on='GFPM_CountryCode',
+                                                             how='left')
+
+            reformated_growth_rate_gdp_cap = self.region_key_gfpm.merge(
+                self.growth_rate_gdp_cap[['GFPM_CountryCode', f'{year}']], left_on='GFPM_CountryCode',
+                right_on='GFPM_CountryCode', how='left')
+            reformated_growth_rate_gdp_cap = reformated_growth_rate_gdp_cap[['GFPM_CountryCode', f'{year}']].fillna(0)
+            reformated_growth_rate_gdp_cap = reformated_growth_rate_gdp_cap[
+                reformated_growth_rate_gdp_cap['GFPM_CountryCode'] != '--'].reset_index(drop=True)
+
+            temp_ExogChange.loc[index_demand, 'Unnamed: 9'] = reformated_growth_rate_gdp_demand.set_index(
+                index_demand)[f'{year}']
+            temp_ExogChange.loc[index_supply, 'Unnamed: 9'] = reformated_growth_rate_gdp_supply.set_index(
+                index_supply)[f'{year}']
+            temp_ExogChange.loc[index_forest, 'Unnamed: 9'] = reformated_growth_rate_gdp_cap.set_index(
+                index_forest)[f'{year}']
+
+            ExoChange_data_updated = pd.concat([ExoChange_data_updated, temp_ExogChange], axis=0)
+
+        new_ExogChange = pd.concat([ExogChange_description, ExoChange_data_updated], axis=0).reset_index(drop=True)
+
+        return new_ExogChange
+
+    def update_World(self):
+        self.Logger.info(f'Update {self.project} World with new ExogChange')
+        output_folder = f'{self.sfile}\\data\\output\\'
+        input_folder = f'{self.sfile}\\data\\input\\'
+        time_stamp = dt.datetime.now().strftime("%Y%m%d")
+
+        separator = '_'
+        updated_world_name = self.input_world.split(separator)[1:]
+        updated_world_name = f'{time_stamp}_Updated_{separator.join(updated_world_name)}'
+
+        shutil.copy2(src=f'{input_folder}{self.input_world}.xlsx',
+                     dst=f'{output_folder}{updated_world_name}.xlsx')
+
+        wb = load_workbook(f'{output_folder}{updated_world_name}.xlsx')
+        if 'ExogChange' in wb.sheetnames:
+            wb.remove(wb['ExogChange'])
+        wb.save(f'{output_folder}{updated_world_name}.xlsx')
+
+        self.Logger.info(f'Save updated world')
+        options = {'strings_to_formulas': False,
+                   'strings_to_urls': False}
+
+        with pd.ExcelWriter(f'{output_folder}{updated_world_name}.xlsx', engine='openpyxl',
+                            mode='a', if_sheet_exists='replace') as writer:
+            self.new_exogChange.to_excel(writer, sheet_name='ExogChange', index=False)
+
     def main_disaggregation_pipeline(self):
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
@@ -318,5 +419,8 @@ class DisaggregateCGEResults(object):
             target_parameter=Pipeline_Disagg.disagg_gdp)
         Pipeline_Disagg.growth_rate_gdp_cap = Pipeline_Disagg.calc_growth_rate(
             target_parameter=Pipeline_Disagg.disagg_gdp_cap)
+
+        Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange()
+        Pipeline_Disagg.update_World()
 
         Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
