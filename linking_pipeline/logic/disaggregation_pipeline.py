@@ -272,6 +272,29 @@ class DisaggregateCGEResults(object):
 
         return gdp_per_capita
 
+    def calc_growth_rate(self, target_parameter: pd.DataFrame):
+        """
+        Calculate annual growth rate of economic variables (GDP and GDP per capita) projected by linked CGE and
+        disaggregated to GFPMpt country level
+        :param target_parameter: Parameter for which growth rates will be calculated
+        :return:
+        """
+        self.Logger.info(f'Calculate growth rate for {target_parameter}.')
+        growth_rate = target_parameter[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
+                                        f'{self.linked_CGE}_{self.project}', self.start_year]]
+
+        year_period_min = self.start_year
+        for key in self.exogenous_change_structure.keys():
+            year_period_max = year_period_min + self.exogenous_change_structure[key][1]
+            periodic_growth_rate = pd.DataFrame((target_parameter[year_period_max] - target_parameter[year_period_min])
+                                                / target_parameter[year_period_min]
+                                                ).rename(columns={0: f"{year_period_max}"})
+            annual_growth_rate = (1 + periodic_growth_rate) ** (1 / self.exogenous_change_structure[key][1]) - 1
+            growth_rate = pd.concat([growth_rate, annual_growth_rate], axis=1)
+            year_period_min = year_period_max
+
+        return growth_rate
+
     def main_disaggregation_pipeline(self):
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
@@ -290,5 +313,10 @@ class DisaggregateCGEResults(object):
         Pipeline_Disagg.disagg_pop = Pipeline_Disagg.disagg_pop()
 
         Pipeline_Disagg.disagg_gdp_cap = Pipeline_Disagg.calc_gdp_per_capita()
+
+        Pipeline_Disagg.growth_rate_gdp = Pipeline_Disagg.calc_growth_rate(
+            target_parameter=Pipeline_Disagg.disagg_gdp)
+        Pipeline_Disagg.growth_rate_gdp_cap = Pipeline_Disagg.calc_growth_rate(
+            target_parameter=Pipeline_Disagg.disagg_gdp_cap)
 
         Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
