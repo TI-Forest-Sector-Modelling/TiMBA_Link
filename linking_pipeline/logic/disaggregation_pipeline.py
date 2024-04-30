@@ -255,6 +255,23 @@ class DisaggregateCGEResults(object):
 
         return disagg_pop_data_fin
 
+    def calc_gdp_per_capita(self):
+        """
+        Calculate GDP per capita with disaggregated projected GDP data from CGE and Population data from OECD (not
+        changing in the CGE projections).
+        :return: Calculated data for GDP per capita
+        """
+        self.Logger.info(f'Calculate GDP per capita using disaggregated data of GDP from '
+                         f'{self.linked_CGE}_{self.project} and data of Pop from OECD.')
+        gdp_per_capita = self.disagg_gdp[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
+                                          f'{self.linked_CGE}_{self.project}']]
+        year_list = list(range(self.start_year, self.end_year + 1))
+        for year in year_list:
+            temp_gdp_per_capita = self.disagg_gdp[year] / self.disagg_pop[year]
+            gdp_per_capita = pd.concat([gdp_per_capita, temp_gdp_per_capita], axis=1)
+
+        return gdp_per_capita
+
     def main_disaggregation_pipeline(self):
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
@@ -272,5 +289,6 @@ class DisaggregateCGEResults(object):
         Pipeline_Disagg.disagg_gdp = Pipeline_Disagg.disagg_gdp()
         Pipeline_Disagg.disagg_pop = Pipeline_Disagg.disagg_pop()
 
+        Pipeline_Disagg.disagg_gdp_cap = Pipeline_Disagg.calc_gdp_per_capita()
 
         Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
