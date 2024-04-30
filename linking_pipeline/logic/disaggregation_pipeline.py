@@ -406,21 +406,28 @@ class DisaggregateCGEResults(object):
             linked_CGE=self.linked_CGE,
             project=self.project
         )
+        if self.linked_CGE == 'DART-BIO':
+            Pipeline_Disagg.worldbank_gdp_weights = Pipeline_Disagg.calc_worldbank_gdp_weights()
+            Pipeline_Disagg.worldbank_pop_weights = Pipeline_Disagg.calc_worldbank_pop_weights()
 
-        Pipeline_Disagg.worldbank_gdp_weights = Pipeline_Disagg.calc_worldbank_gdp_weights()
-        Pipeline_Disagg.worldbank_pop_weights = Pipeline_Disagg.calc_worldbank_pop_weights()
+            Pipeline_Disagg.disagg_gdp = Pipeline_Disagg.disagg_gdp()
+            Pipeline_Disagg.disagg_pop = Pipeline_Disagg.disagg_pop()
 
-        Pipeline_Disagg.disagg_gdp = Pipeline_Disagg.disagg_gdp()
-        Pipeline_Disagg.disagg_pop = Pipeline_Disagg.disagg_pop()
+            Pipeline_Disagg.disagg_gdp_cap = Pipeline_Disagg.calc_gdp_per_capita()
 
-        Pipeline_Disagg.disagg_gdp_cap = Pipeline_Disagg.calc_gdp_per_capita()
+            Pipeline_Disagg.growth_rate_gdp = Pipeline_Disagg.calc_growth_rate(
+                target_parameter=Pipeline_Disagg.disagg_gdp)
+            Pipeline_Disagg.growth_rate_gdp_cap = Pipeline_Disagg.calc_growth_rate(
+                target_parameter=Pipeline_Disagg.disagg_gdp_cap)
 
-        Pipeline_Disagg.growth_rate_gdp = Pipeline_Disagg.calc_growth_rate(
-            target_parameter=Pipeline_Disagg.disagg_gdp)
-        Pipeline_Disagg.growth_rate_gdp_cap = Pipeline_Disagg.calc_growth_rate(
-            target_parameter=Pipeline_Disagg.disagg_gdp_cap)
+            Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange()
+            Pipeline_Disagg.update_World()
 
-        Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange()
-        Pipeline_Disagg.update_World()
+        elif self.linked_CGE == 'MAGNET':
+            # todo for CarbonLeak
+            Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
+
+        else:
+            Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
 
         Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
