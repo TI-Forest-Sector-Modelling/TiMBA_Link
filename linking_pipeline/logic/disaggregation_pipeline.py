@@ -178,29 +178,37 @@ class DisaggregateCGEResults(object):
 
     def calc_worldbank_pop_weights(self):
         """
-        Calculates Pop-weights based on average GDP-data for 2010, 2011, and 2012 from Worldbank to disaggregate
-        DART-BIO Pop-data to country-level of GFPMpt.
-        :return:
+        Calculates population weights based on 3-years average of population data from Worldbank to disaggregate CGE
+        data of population to country level of GFPMpt. Disaggregation of population data assumes that GDP shares of
+        countries in each CGE region is not changing over the projection period.
+        :return: Population weights for each country in each regions of the linked CGE model.
         """
-        self.Logger.info(f"Calculate Pop-weights using Worldbank Pop-data to disaggregate DART-BIO-data.")
-        worldbank_pop_data = self.worldbank_pop_data.merge(self.region_key, left_on="Country Code", right_on="ISO-Code",
-                                                           how="left").dropna()
-        worldbank_pop_data["average_pop"] = (worldbank_pop_data[2010] + worldbank_pop_data[2011] +
-                                             worldbank_pop_data[2012]) / 3
-        worldbank_pop_data = worldbank_pop_data[["Country Name", "ISO-Code", "GFPM_CountryCode", "OECD_Ccodes",
-                                                 "DART-BIO-Region", "average_pop"]].reset_index(drop=True)
+        self.Logger.info(f'Calculate popluations weights using Worldbank population data to disaggregate '
+                         f'{self.linked_CGE} data for {self.project}.')
 
-        # pop_data_grouped_oecd_level = worldbank_pop_data.groupby(["OECD_Ccodes"])["average_pop"].sum().reset_index() todo remove when finish
-        pop_data_grouped_dart_level = worldbank_pop_data.groupby(["DART-BIO-Region"])["average_pop"].sum().reset_index()
-        worldbank_pop_data = worldbank_pop_data.merge(pop_data_grouped_dart_level,
-                                                      left_on="DART-BIO-Region",
-                                                      right_on="DART-BIO-Region",
-                                                      how="left").rename(columns={"average_pop_x": "average_pop_WB",
-                                                                                  "average_pop_y": "average_pop_DART"})
-        worldbank_pop_data["worldbank_pop_weights"] = (worldbank_pop_data["average_pop_WB"] /
-                                                       worldbank_pop_data["average_pop_DART"])
+        worldbank_pop_data = self.worldbank_data['pop']
 
-        self.worldbank_pop_weights = worldbank_pop_data
+        worldbank_pop_data = worldbank_pop_data.merge(self.region_key, left_on="Country Code", right_on="ISO-Code",
+                                                      how="left").dropna()
+        worldbank_pop_data['avg_pop'] = (np.sum(worldbank_pop_data[self.year_for_avg], axis=1) /
+                                         len(self.year_for_avg))
+        worldbank_pop_data = worldbank_pop_data[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
+                                                 f'{self.linked_CGE}_{self.project}', 'avg_pop']].reset_index(drop=True)
+        # todo remove when finished
+        # pop_data_grouped_oecd_level = worldbank_pop_data.groupby(["OECD_Ccodes"])["average_pop"].sum().reset_index()
+        # todo remove until here
+        pop_data_grouped_cge_lvl = worldbank_pop_data.groupby([f'{self.linked_CGE}_{self.project}']
+                                                              )['avg_pop'].sum().reset_index()
+        worldbank_pop_data = worldbank_pop_data.merge(
+            pop_data_grouped_cge_lvl,
+            left_on=f'{self.linked_CGE}_{self.project}',
+            right_on=f'{self.linked_CGE}_{self.project}',
+            how='left').rename(columns={'avg_pop_x': 'avg_pop_WB',
+                                        'avg_pop_y': f'avg_pop_{self.linked_CGE}_{self.project}'})
+        worldbank_pop_data['pop_weights'] = (worldbank_pop_data['avg_pop_WB'] /
+                                             worldbank_pop_data[f'avg_pop_{self.linked_CGE}_{self.project}'])
+
+        return worldbank_pop_data
 
     def main_disaggregation_pipeline(self):
         Pipeline_Disagg = DisaggregateCGEResults(
@@ -215,3 +223,5 @@ class DisaggregateCGEResults(object):
 
         Pipeline_Disagg.worldbank_gdp_weights = Pipeline_Disagg.calc_worldbank_gdp_weights()
         Pipeline_Disagg.worldbank_pop_weights = Pipeline_Disagg.calc_worldbank_pop_weights()
+
+        Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
