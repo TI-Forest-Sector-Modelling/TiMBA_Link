@@ -232,6 +232,29 @@ class DisaggregateCGEResults(object):
 
         return disagg_gdp_data_fin
 
+    def disagg_pop(self):
+        """
+        Disaggregate CGE data for Population using calculated Population weights based on Worldbank data. Converting
+        Population data from Mio to unit. Disaggregation assume that country-specific weights are not changing over the
+        projection period.
+        :return: Disaggregated CGE data for Population
+        """
+        self.Logger.info(f'Disaggregate {self.linked_CGE} of GDP using calculated GDP weights for {self.project}.')
+
+        cge_pop_data = self.cge_data['pop']
+        disagg_pop_data = self.worldbank_pop_weights.merge(cge_pop_data, left_on=f'{self.linked_CGE}_{self.project}',
+                                                           right_on='Region', how='left')
+        disagg_pop_data_fin = disagg_pop_data[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
+                                               f'{self.linked_CGE}_{self.project}']]
+
+        year_list = list(range(self.start_year, self.end_year + 1))
+        for year in year_list:
+            temp_disagg_pop = pd.DataFrame(disagg_pop_data[year] * disagg_pop_data['pop_weights'] * 1000000
+                                           ).rename(columns={0: year})
+            disagg_pop_data_fin = pd.concat([disagg_pop_data_fin, temp_disagg_pop], axis=1)
+
+        return disagg_pop_data_fin
+
     def main_disaggregation_pipeline(self):
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
@@ -247,6 +270,7 @@ class DisaggregateCGEResults(object):
         Pipeline_Disagg.worldbank_pop_weights = Pipeline_Disagg.calc_worldbank_pop_weights()
 
         Pipeline_Disagg.disagg_gdp = Pipeline_Disagg.disagg_gdp()
+        Pipeline_Disagg.disagg_pop = Pipeline_Disagg.disagg_pop()
 
 
         Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
