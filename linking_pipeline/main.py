@@ -34,10 +34,10 @@ class main_linking_pipeline(object):
 
 
 if __name__ == '__main__':
-    pipeline = main_linking_pipeline(current_scenario='reference_scenario_BioSDG_SSP2_2011_FRA',
-                                     input_path_gfpmpt='DataContainer_Sc_20240409_BioSDG_World_2011_SSP2_FRA',
-                                     input_path_CGE='dartbio_data_gdpA_i3',
-                                     input_world='20240409_BioSDG_World_2011_SSP2_FRA',
+    pipeline = main_linking_pipeline(current_scenario='20240717_BioSDG_World_2011_test_SSP2_REF',
+                                     input_path_gfpmpt='DataContainer_Sc_20240409_BioSDG_World_2011_SSP2_FRA_7Periods',  # For result aggregation
+                                     input_path_CGE='dartbio_data_gdpA_i3',   # For result disaggregation
+                                     input_world='20240409_BioSDG_World_2011_SSP2_FRA',  # For result disaggregation
                                      # Note: Update current_scenario if input_path_gfpmpt is changed
                                      link_typ='end_point',  # Alternatives: 'continous', 'end_point'
                                      # Note:
@@ -46,8 +46,8 @@ if __name__ == '__main__':
                                      linked_CGE='DART-BIO',  # Alternatives: 'DART-BIO', 'MAGNET'
                                      project='BioSDG_cp',    # Alternatives: 'BioSDG', 'BioSDG_cp', 'CarbonLeak', 'BEPASO'
                                      # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
-                                     aggregation_switch=False,  # Note: activates aggregation if True
-                                     disaggregation_switch=True  # Note: activates disaggregation if True
+                                     aggregation_switch=True,  # Note: activates aggregation if True
+                                     disaggregation_switch=False  # Note: activates disaggregation if True
                                      )
 
     if pipeline.aggregation_switch:
