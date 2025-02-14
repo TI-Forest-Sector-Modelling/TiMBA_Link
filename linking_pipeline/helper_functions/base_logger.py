@@ -17,10 +17,10 @@ def get_logger(user_path: Union[str, Path, None], aggregation_flag: bool):
     current_dt = dt.datetime.now().strftime("%Y%m%d")
     if aggregation_flag:
         filename = rf"{current_dt}_aggregation.log"
-        LOGGING_OUTPUT_FOLDER = r"output"
+        LOGGING_OUTPUT_FOLDER = r"data\\output"
     else:
         filename = rf"{current_dt}_disaggregation.log"
-        LOGGING_OUTPUT_FOLDER = r"output"
+        LOGGING_OUTPUT_FOLDER = r"data\\output"
 
     if user_path is None:
         filepath = os.path.join(LOGGING_OUTPUT_FOLDER, filename)
@@ -29,7 +29,7 @@ def get_logger(user_path: Union[str, Path, None], aggregation_flag: bool):
     if not os.path.exists(filepath):
         os.makedirs(Path(filepath).parent, exist_ok=True)
 
-    Logger = logging.getLogger("GFPMpt linking pipeline")
+    Logger = logging.getLogger("TiMBA linking pipeline")
     Logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s %(lineno)s: %(message)s',
