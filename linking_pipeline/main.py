@@ -1,19 +1,17 @@
 # -----------------------------------------------------
-# GFPMpt_linking_pipeline - main_linking_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
-# Soft linkage of GFPMpt to selected CGE (spatial and sectoral aggregation and disaggregation)
+# CGE_linking_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
+# Soft linkage of TiMBA to selected CGE (spatial and sectoral aggregation and disaggregation)
 # Projects: BioSDG, CarbonLeak
-# Status: 04.2024
-# Last update: 04.2024
 # -----------------------------------------------------
 # imports
 import datetime as dt
-from linking_pipeline.logic.aggregation_pipeline import AggregateGFPMptResults
+from linking_pipeline.logic.aggregation_pipeline import AggregateTiMBAResults
 from linking_pipeline.logic.disaggregation_pipeline import DisaggregateCGEResults
 
 class main_linking_pipeline(object):
     def __init__(self,
                  current_scenario: str,
-                 input_path_gfpmpt: str,
+                 input_path_timba: str,
                  input_path_CGE: str,
                  input_world: str,
                  link_typ: str,
@@ -23,7 +21,7 @@ class main_linking_pipeline(object):
                  disaggregation_switch: bool):
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
-        self.input_path_gfpmpt = input_path_gfpmpt
+        self.input_path_timba = input_path_timba
         self.input_path_CGE = input_path_CGE
         self.input_world = input_world
         self.link_typ = link_typ
@@ -34,24 +32,24 @@ class main_linking_pipeline(object):
 
 
 if __name__ == '__main__':
-    pipeline = main_linking_pipeline(current_scenario='20240717_BioSDG_World_2011_test_SSP2_REF',
-                                     input_path_gfpmpt='DataContainer_Sc_20240409_BioSDG_World_2011_SSP2_FRA_7Periods',  # For result aggregation
+    pipeline = main_linking_pipeline(current_scenario='2025_CarbonLeak_REF_sc_SSP2_30periods',
+                                     input_path_timba='2025_CarbonLeak_REF_sc_SSP2_30periods',  # For result aggregation
                                      input_path_CGE='dartbio_data_gdpA_i3',   # For result disaggregation
                                      input_world='20240409_BioSDG_World_2011_SSP2_FRA',  # For result disaggregation
-                                     # Note: Update current_scenario if input_path_gfpmpt is changed
-                                     link_typ='end_point',  # Alternatives: 'continous', 'end_point'
+                                     # Note: Update current_scenario if input_path_timba is changed
+                                     link_typ='continous',  # Alternatives: 'continous', 'end_point'
                                      # Note:
-                                     # If 'continous' GFPMpt results all intermediate periods are processed
-                                     # If 'end_point' GFPMpt results for first and final periods are processed
-                                     linked_CGE='DART-BIO',  # Alternatives: 'DART-BIO', 'MAGNET'
-                                     project='BioSDG_cp',    # Alternatives: 'BioSDG', 'BioSDG_cp', 'CarbonLeak', 'BEPASO'
+                                     # If 'continous' TiMBA results all intermediate periods are processed
+                                     # If 'end_point' TiMBA results for first and final periods are processed
+                                     linked_CGE='MAGNET',  # Alternatives: 'DART-BIO', 'MAGNET'
+                                     project='CarbonLeak',    # Alternatives: 'BioSDG', 'BioSDG_cp', 'CarbonLeak', 'BEPASO'
                                      # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
                                      aggregation_switch=True,  # Note: activates aggregation if True
                                      disaggregation_switch=False  # Note: activates disaggregation if True
                                      )
 
     if pipeline.aggregation_switch:
-        AggregateGFPMptResults.main_aggregation_pipeline(self=pipeline,
+        AggregateTiMBAResults.main_aggregation_pipeline(self=pipeline,
                                                          domains_to_aggregate=['production', 'forest', 'carbon', 'io']
                                                          # Alternatives: 'production', 'forest', 'carbon', 'io'
                                                          )

@@ -1,8 +1,7 @@
 # -----------------------------------------------------
-# GFPMpt_linking_pipeline - aggregation_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
-# GFPMpt-output aggregation to selected CGE (spatial and sectoral aggregation)
-# Status: 03.2024
-# Last update: 03.2024
+# CGE_linking_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
+# Soft linkage of TiMBA to selected CGE (spatial and sectoral aggregation and disaggregation)
+# Projects: BioSDG, CarbonLeak
 # -----------------------------------------------------
 
 # imports
@@ -17,10 +16,10 @@ from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures
 
 
-class AggregateGFPMptResults(object):
+class AggregateTiMBAResults(object):
     def __init__(self,
                  current_scenario: str,
-                 input_path_gfpmpt: str,
+                 input_path_timba: str,
                  link_typ: str,
                  linked_CGE: str,
                  project: str
@@ -29,44 +28,44 @@ class AggregateGFPMptResults(object):
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
-        self.input_path_gfpmpt = input_path_gfpmpt
+        self.input_path_timba = input_path_timba
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
-        self.gfpmpt_data = AggregateGFPMptResults.readin_model_data(self)
+        self.timba_data = AggregateTiMBAResults.readin_model_data(self)
         (self.region_key, self.commodity_key, self.exogenous_change_structure, self.start_year, self.end_year
-         ) = AggregateGFPMptResults.readin_help_data(self)
+         ) = AggregateTiMBAResults.readin_help_data(self)
 
     def readin_model_data(self):
         """
-        Read in GFPMpt-data for production (ManufactureCost and Supply)
-        :return pd.DataFrame: GFPMpt-data
+        Read in TiMBA data for production (ManufactureCost and Supply)
+        :return pd.DataFrame: TiMBA data
         """
-        self.Logger.info(f"Read in GFPMpt results {self.input_path_gfpmpt}.")
-        src_path = f'{self.sfile}\\data\\input\\{self.input_path_gfpmpt}.pkl'
+        self.Logger.info(f"Read in TiMBA results {self.input_path_timba}.")
+        src_path = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
 
         try:
             with open(src_path, "rb") as pkl_file:
-                gfpmpt_data = pickle.load(pkl_file)
+                timba_data = pickle.load(pkl_file)
         except pickle.UnpicklingError:
             with gzip.open(src_path, "rb") as pkl_file:
-                gfpmpt_data = pickle.load(pkl_file)
+                timba_data = pickle.load(pkl_file)
 
-        return gfpmpt_data
+        return timba_data
 
     def readin_help_data(self):
         """
-        Read in help data used for the aggregation to DART-BIO-sectors (commodity_key) and to DART-BIO-regions
+        Read in help data used for the aggregation to CGE-sectors (commodity_key) and to CGE-regions
         (region_key). Exogenous_change_structure stores information about the number of periods and the length of each
          period
         :return: help data in different types (pd.DataFrame and dict)
         """
         self.Logger.info(f"Read in help data.")
-        gfpmpt_commodities = self.gfpmpt_data['data_periods']['CommodityCode'].unique()
+        timba_commodities = self.timba_data['data_periods']['CommodityCode'].unique()
 
-        if len(gfpmpt_commodities) == 14:
+        if len(timba_commodities) == 14:
             commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14.value)
-        if len(gfpmpt_commodities) == 16:
+        if len(timba_commodities) == 16:
             if self.project == 'BioSDG':
                 commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16_biosdg.value)
             else:
@@ -76,7 +75,7 @@ class AggregateGFPMptResults(object):
         region_key = region_key.parse('m_Country')
         region_key = region_key[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}']]
 
-        exogenous_change_data = self.gfpmpt_data['data_periods'][
+        exogenous_change_data = self.timba_data['data_periods'][
             ['Period', 'year']].drop_duplicates().reset_index(drop=True)
         start_year = exogenous_change_data['year'][0]
         end_year = exogenous_change_data['year'][max(exogenous_change_data.index)]
@@ -94,23 +93,23 @@ class AggregateGFPMptResults(object):
 
     def aggregate_production_data(self, intermediate_aggregation: bool):
         """
-        Aggregate GFPMpt-data for production to DART-BIO-level in three steps.
-        1. step: Aggregate GFPMpt-data for production by summing up supply and manufacturecost (production_data)
-        2. step: Aggregate GFPMpt-data for production to DART-BIO-regions (region_production_data)
-        3. step: Aggregate GFPMpt-data for production to DART-BIO-sectors (sector_production_data)
+        Aggregate TiMBA data for production to selected TiMBA level in three steps.
+        1. step: Aggregate TiMBA data for production by summing up supply and manufacturecost (production_data)
+        2. step: Aggregate TiMBA data for production to CGE regions (region_production_data)
+        3. step: Aggregate TiMBA data for production to CGE sectors (sector_production_data)
         :param intermediate_aggregation: Flag controlling if intermediate aggregation is included in a separate column
-        :return: Aggregated production data to DART-BIO-level (region and sector)
+        :return: Aggregated production data to CGE level (region and sector)
         """
-        self.Logger.info(f"Aggregate GFPMpt-data for production to {self.linked_CGE} (region and sector).")
-        gfpm_data = self.gfpmpt_data['data_periods']
+        self.Logger.info(f"Aggregate TiMBA data for production to {self.linked_CGE} (region and sector).")
+        timba_data = self.timba_data['data_periods']
         # TODO consider to include trade in calculations
-        production_data = gfpm_data[(gfpm_data['domain'] == 'Supply') |
-                                    (gfpm_data['domain'] == 'ManufactureCost')]
+        production_data = timba_data[(timba_data['domain'] == 'Supply') |
+                                     (timba_data['domain'] == 'ManufactureCost')]
         production_data = production_data.groupby(["RegionCode", "CommodityCode", "year"]
                                                   )["quantity"].sum().reset_index()
 
-        export_data = gfpm_data[gfpm_data['domain'] == 'TransportationExport']
-        import_data = gfpm_data[gfpm_data['domain'] == 'TransportationImport']
+        export_data = timba_data[timba_data['domain'] == 'TransportationExport']
+        import_data = timba_data[timba_data['domain'] == 'TransportationImport']
         export_data = export_data.sort_values(by=['RegionCode', 'CommodityCode', 'year'],
                                               ascending=True).reset_index(drop=True)
         import_data = import_data.sort_values(by=['RegionCode', 'CommodityCode', 'year'],
@@ -139,7 +138,7 @@ class AggregateGFPMptResults(object):
     def share_energy_material_use(self):
         production_data = self.production_data
         production_data = production_data.sort_values(by=['year', 'RegionCode'], ascending=True).reset_index(drop=True)
-        share_of_fuelwood = self.gfpmpt_data['Forest']['FuelwoodForest']
+        share_of_fuelwood = self.timba_data['Forest']['FuelwoodForest']
         production_data['quantity'] = production_data['quantity'] * share_of_fuelwood
 
         fuelwood_production_data = production_data[production_data['CommodityCode'] == 80].reset_index(drop=True)
@@ -166,20 +165,20 @@ class AggregateGFPMptResults(object):
 
     def agg_price_data(self):
         """
-        Aggregate GFPMpt-data for product prices to DART-BIO-level in five steps. Aggregated prices are weighted using
+        Aggregate TiMBA data for product prices to CGE level in five steps. Aggregated prices are weighted using
         aggregated values and quantity.
-        1. step: Aggregate GFPMpt-data for production and for price by summing up supply and manufacturecost
+        1. step: Aggregate TiMBA data for production and for price by summing up supply and manufacturecost
         (production_data and price_data)
         2. step: Calculate values (production quantity * prices)
-        3. step: Aggregate GFPMpt-data for production and for values to DART-BIO-regions (region_production_data and
+        3. step: Aggregate TiMBA data for production and for values to CGE regions (region_production_data and
         region_value_data)
-        4. step: Aggregate GFPMpt-data for production and for values to DART-BIO-sectors (sector_production_data and
+        4. step: Aggregate TiMBA data for production and for values to CGE sectors (sector_production_data and
         sector_value_data)
-        5. step: Aggregate GFPMpt-data for prices as weighted prices using aggregated values and production.
-        :return pd.DataFrame: Aggregated and weighted price data to DART-BIO-level (region and sector)
+        5. step: Aggregate TiMBA data for prices as weighted prices using aggregated values and production.
+        :return pd.DataFrame: Aggregated and weighted price data to  CGE level (region and sector)
         """
-        self.Logger.info(f'Aggregate GFPMpt-data for price to {self.linked_CGE} (region and sector).')
-        production_data = self.gfpmpt_data['data_periods']
+        self.Logger.info(f'Aggregate TiMBA data for price to {self.linked_CGE} (region and sector).')
+        production_data = self.timba_data['data_periods']
         production_data = production_data[(production_data['domain'] == 'Supply') |
                                           (production_data['domain'] == 'ManufactureCost')]
 
@@ -225,22 +224,22 @@ class AggregateGFPMptResults(object):
 
     def agg_value_data(self):
         """
-        Aggregate GFPMpt-data for values to DART-BIO-level in three steps.
-        1. step: Aggregate GFPMpt-data for production and for price by summing up supply and manufacturecost
+        Aggregate TiMBA data for values to CGE level in three steps.
+        1. step: Aggregate TiMBA data for production and for price by summing up supply and manufacturecost
         (production_data and price_data)
         2. step: Calculate values (production quantity * prices)
-        2. step: Aggregate GFPMpt-data for values to DART-BIO-regions (region_value_data)
-        3. step: Aggregate GFPMpt-data for values to DART-BIO-sectors (sector_value_data)
-        :return: Aggregated value data to DART-BIO-level (region and sector)
+        2. step: Aggregate TiMBA data for values to CGE regions (region_value_data)
+        3. step: Aggregate TiMBA data for values to CGE sectors (sector_value_data)
+        :return: Aggregated value data to CGE level (region and sector)
         """
-        self.Logger.info(f'Aggregate GFPMpt-data for value to {self.linked_CGE} (region and sector).')
+        self.Logger.info(f'Aggregate TiMBA data for value to {self.linked_CGE} (region and sector).')
 
-        gfpmpt_data = self.gfpmpt_data['data_periods']
-        gfpmpt_data = gfpmpt_data[(gfpmpt_data['domain'] == 'Supply') |
-                                  (gfpmpt_data['domain'] == 'ManufactureCost')]
+        timba_data = self.timba_data['data_periods']
+        timba_data = timba_data[(timba_data['domain'] == 'Supply') |
+                                (timba_data['domain'] == 'ManufactureCost')]
 
-        price_data = gfpmpt_data.groupby(['RegionCode', 'CommodityCode', 'year'])['price'].sum().reset_index()
-        production_data = gfpmpt_data.groupby(['RegionCode', 'CommodityCode', 'year'])['quantity'].sum().reset_index()
+        price_data = timba_data.groupby(['RegionCode', 'CommodityCode', 'year'])['price'].sum().reset_index()
+        production_data = timba_data.groupby(['RegionCode', 'CommodityCode', 'year'])['quantity'].sum().reset_index()
 
         price_data = price_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
                                       how='left').dropna()
@@ -264,13 +263,13 @@ class AggregateGFPMptResults(object):
 
     def agg_forest_data(self):
         """
-        Aggregate GFPMpt data for forest stock and area to selected CGE level (regions)
+        Aggregate TiMBA data for forest stock and area to selected CGE level (regions)
         :return: Aggregated forest data to selected CGE level (regions)
         """
-        self.Logger.info(f'Aggregate GFPMpt data for forest to {self.linked_CGE} (region and sector).')
+        self.Logger.info(f'Aggregate TiMBA data for forest to {self.linked_CGE} (region and sector).')
 
-        forest_data = self.gfpmpt_data['Forest']
-        period_data = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        forest_data = self.timba_data['Forest']
+        period_data = self.timba_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
         forest_data = forest_data.merge(period_data, left_on='Period', right_on='Period', how='left')
         forest_data = forest_data[['RegionCode', 'Period', 'year', 'ForStock', 'ForArea']]
         forest_data = forest_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
@@ -285,16 +284,16 @@ class AggregateGFPMptResults(object):
 
     def agg_harvest_data(self):
         """
-        Aggregate GFPMpt data for raw material from forest (= harvest) to selected CGE level (regions) using GFPMpt-
+        Aggregate TiMBA data for raw material from forest (= harvest) to selected CGE level (regions) using TiMBA
         parameter raw_material_from_forest to aggregate only supply originating from forests.
         :return: Aggregated harvest data to selected CGE level (regions)
         """
-        self.Logger.info(f'Aggregate GFPMpt data for harvest to {self.linked_CGE} (region and sector).')
-        # todo add fuelwood from forest to forest df in GFPMpt results to make calculations
-        harvest_data = self.gfpmpt_data['data_periods']
+        self.Logger.info(f'Aggregate TiMBA data for harvest to {self.linked_CGE} (region and sector).')
+        # todo add fuelwood from forest to forest df in TiMBA results to make calculations
+        harvest_data = self.timba_data['data_periods']
         harvest_data = harvest_data[(harvest_data['domain'] == 'Supply') &
                                     (harvest_data['RegionCode'] != 'zy')].reset_index(drop=True)
-        fuelwood_from_forest = self.gfpmpt_data['Forest']['FuelwoodForest']
+        fuelwood_from_forest = self.timba_data['Forest']['FuelwoodForest']
 
         harvest_data.loc[:, 'quantity'] = harvest_data['quantity'] * fuelwood_from_forest
         harvest_data = harvest_data[harvest_data['CommodityCode'] < 83].reset_index(drop=True)
@@ -325,13 +324,13 @@ class AggregateGFPMptResults(object):
 
     def agg_carbon_data(self):
         """
-        Aggregate GFPMpt data for carbon to selected CGE level (regions)
+        Aggregate TiMBA data for carbon to selected CGE level (regions)
         :return: Aggregated carbon data to selected CGE level (regions)
         """
-        self.Logger.info(f'Aggregate GFPMpt data for carbon to {self.linked_CGE} (region and sector).')
+        self.Logger.info(f'Aggregate TiMBA data for carbon to {self.linked_CGE} (region and sector).')
 
-        carbon_data = self.gfpmpt_data['Carbon']
-        period_data = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        carbon_data = self.timba_data['Carbon']
+        period_data = self.timba_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
         carbon_data = carbon_data.merge(period_data, left_on='Period', right_on='Period', how='left')
         carbon_data = carbon_data.merge(self.region_key, left_on='RegionCode', right_on='GFPM_CountryCode',
                                         how='left').dropna().drop_duplicates()
@@ -347,7 +346,7 @@ class AggregateGFPMptResults(object):
         """
         Calculate the input of frs (total roundwood production) in total amout of lum (sawnwood and wood-based panels)
         based on production data.
-        :param target_data: aggregated GFPMpt-production data
+        :param target_data: aggregated TiMBA production data
         :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
         :return pd.DataFrame: Input frs in lum
         """
@@ -375,7 +374,7 @@ class AggregateGFPMptResults(object):
         """
         Calculate the input of frs (total roundwood production) in total amout of ppp (mechanical and chemical pulp)
         based on production data.
-        :param target_data: aggregated GFPMpt-production data
+        :param target_data: aggregated TiMBA production data
         :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
         :return pd.DataFrame: Input frs in lum
         """
@@ -404,7 +403,7 @@ class AggregateGFPMptResults(object):
         """
         Calculate the input of frs (total roundwood production) in total amout of ppp (mechanical and chemical pulp)
         based on production data.
-        :param target_data: aggregated GFPMpt-production data
+        :param target_data: aggregated TiMBA production data
         :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
         :return pd.DataFrame: Input frs in lum
         """
@@ -436,8 +435,8 @@ class AggregateGFPMptResults(object):
         :return: Complied IO-data stored as a dataframe
         """
 
-        period_info = self.gfpmpt_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
-        io_data = self.gfpmpt_data['ManufactureCoeff']
+        period_info = self.timba_data['data_periods'][['Period', 'year']].drop_duplicates().reset_index(drop=True)
+        io_data = self.timba_data['ManufactureCoeff']
         io_data = io_data.merge(period_info, left_on='Period', right_on='Period', how='left')
         io_data = io_data.merge(self.commodity_key,
                                 left_on='InputCommodity',
@@ -449,16 +448,16 @@ class AggregateGFPMptResults(object):
                                 right_on='GFPMpt_Comcode',
                                 how='left').rename(columns={'GFPMpt_Comgroup': 'Output_Comgroup'})
 
-        gfpm_data = self.gfpmpt_data['data_periods']
+        timba_data = self.timba_data['data_periods']
         # TODO consider to include trade in calculations
-        production_data = gfpm_data[(gfpm_data['domain'] == 'Supply') |
-                                    (gfpm_data['domain'] == 'ManufactureCost')]
+        production_data = timba_data[(timba_data['domain'] == 'Supply') |
+                                     (timba_data['domain'] == 'ManufactureCost')]
 
         production_data = production_data.groupby(['RegionCode', 'CommodityCode', 'year']
                                                   )['quantity'].sum().reset_index()
 
-        export_data = gfpm_data[gfpm_data['domain'] == 'TransportationExport'].reset_index(drop=True)
-        import_data = gfpm_data[gfpm_data['domain'] == 'TransportationImport'].reset_index(drop=True)
+        export_data = timba_data[timba_data['domain'] == 'TransportationExport'].reset_index(drop=True)
+        import_data = timba_data[timba_data['domain'] == 'TransportationImport'].reset_index(drop=True)
 
         production_data['quantity'] = production_data['quantity'] + import_data['quantity'] - export_data['quantity']
 
@@ -659,13 +658,13 @@ class AggregateGFPMptResults(object):
 
     def reformate_gfpmpt_data(self, target_data: pd.DataFrame, col_name: str, start_year: int):
         """
-        Reformate GFPMpt-data to save aggregated data for each considered year in a separate column.
+        Reformate TiMBA data to save aggregated data for each considered year in a separate column.
         :param target_data: Data which will be reformated
         :param col_name: Column name of the aggregated data which will be saved in a separate column
         :param start_year: Year from which data will be reformated
         :return pd.DataFrame: Reformated target_data
         """
-        self.Logger.info(f'Reformate GFPMpt-Data to prepare growth rate calculations.')
+        self.Logger.info(f'Reformate TiMBA Data to prepare growth rate calculations.')
         if 'GFPMpt_Comgroup' in target_data.columns:
             selected_col = [f'{self.linked_CGE}_{self.project}', 'GFPMpt_Comgroup', 'GTAP-Sector', f'{col_name}']
 
@@ -730,7 +729,7 @@ class AggregateGFPMptResults(object):
         """
         Generate Excel-Output-file storing all aggregated production related GFPMpt data and calculated growth rates.
         """
-        self.Logger.info(f'Save aggregated production related GFPMpt data in Excel-file.')
+        self.Logger.info(f'Save aggregated production related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
@@ -756,10 +755,10 @@ class AggregateGFPMptResults(object):
 
         # Generate info-sheet
         output_info = {
-            'Title': ['Aggregated GFPMpt results for production quantities, prices, and values', ],
+            'Title': ['Aggregated TiMBA results for production quantities, prices, and values', ],
             'Project': [f'{self.project}', ],
             'Linked CGE': [f'{self.linked_CGE}', ],
-            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Input': [f'{self.input_path_timba}', ],
             'Scenario': [f'{self.current_scenario}', ],
             'Date': [f'{self.current_dt}', ],
             'abs_quantities': [f'Absolute projected production quantities', '[Tsd. m³ or t]'],
@@ -791,9 +790,9 @@ class AggregateGFPMptResults(object):
 
     def generate_output_file_forest(self):
         """
-        Generate Excel-Output-file storing all aggregated forest related GFPMpt data and calculated growth rates.
+        Generate Excel-Output-file storing all aggregated forest related TiMBA data and calculated growth rates.
         """
-        self.Logger.info(f'Save aggregated forest related GFPMpt data in Excel-file.')
+        self.Logger.info(f'Save aggregated forest related TiMBA data in Excel-file.')
 
         # Excel-Writer
         writer_forest = pd.ExcelWriter(
@@ -802,10 +801,10 @@ class AggregateGFPMptResults(object):
 
         # Generate info-sheet
         data_info = {
-            'Title': ['Aggregated pytiGFPM-Results for forest development', ],
+            'Title': ['Aggregated TiMBA Results for forest development', ],
             'Project': [f'{self.project}', ],
             'Linked CGE': [f'{self.linked_CGE}', ],
-            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Input': [f'{self.input_path_timba}', ],
             'Scenario': [f'{self.current_scenario}', ],
             'Date': [f'{self.current_dt}', ],
             'abs_forest_area': ['Absolute projected forest area', '[Tsd. ha]'],
@@ -832,9 +831,9 @@ class AggregateGFPMptResults(object):
 
     def generate_output_file_carbon(self):
         """
-        Generate Excel-Output-file storing all aggregated carbon related GFPMpt data and calculated growth rates.
+        Generate Excel-Output-file storing all aggregated carbon related TiMBA data and calculated growth rates.
         """
-        self.Logger.info(f'Save aggregated carbon related GFPMpt data in Excel-file.')
+        self.Logger.info(f'Save aggregated carbon related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_carbon_data = pd.ExcelWriter(
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
@@ -845,7 +844,7 @@ class AggregateGFPMptResults(object):
             'Title': ['Aggregated carbon stocks for biomass and HWP', ],
             'Project': [f'{self.project}', ],
             'Linked CGE': [f'{self.linked_CGE}', ],
-            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Input': [f'{self.input_path_timba}', ],
             'Scenario': [f'{self.current_scenario}', ],
             'Date': [f'{self.current_dt}', ],
             'abs_carbon_stock_biomass': [f'Absolute carbon stocks in biomass (agb + bgb)', '[MtC]'],
@@ -864,9 +863,9 @@ class AggregateGFPMptResults(object):
 
     def generate_output_file_io(self):
         """
-        Generate Excel-Output-file storing all aggregated IO-related GFPMpt data and calculated growth rates.
+        Generate Excel-Output-file storing all aggregated IO-related TiMBA data and calculated growth rates.
         """
-        self.Logger.info(f'Save aggregated io related GFPMpt data in Excel-file.')
+        self.Logger.info(f'Save aggregated io related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_io_data = pd.ExcelWriter(
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
@@ -877,7 +876,7 @@ class AggregateGFPMptResults(object):
             'Title': ['Aggregated input-output coefficients', ],
             'Project': [f'{self.project}', ],
             'Linked CGE': [f'{self.linked_CGE}', ],
-            'Input': [f'{self.input_path_gfpmpt}', ],
+            'Input': [f'{self.input_path_timba}', ],
             'Scenario': [f'{self.current_scenario}', ],
             'Date': [f'{self.current_dt}', ],
             'abs_io_data': [f'necessary input to produce one unit of output', 'non'],
@@ -890,9 +889,9 @@ class AggregateGFPMptResults(object):
         writer_io_data.save()
 
     def main_aggregation_pipeline(self, domains_to_aggregate: list):
-        Pipeline_Agg = AggregateGFPMptResults(
+        Pipeline_Agg = AggregateTiMBAResults(
             current_scenario=self.current_scenario,
-            input_path_gfpmpt=self.input_path_gfpmpt,
+            input_path_timba=self.input_path_timba,
             link_typ=self.link_typ,  # Alternatives: 'continous', 'end_point'
             linked_CGE=self.linked_CGE,  # Alternatives: 'DART-BIO', 'MAGNET'
             project=self.project  # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
@@ -1030,7 +1029,7 @@ class AggregateGFPMptResults(object):
             Pipeline_Agg.generate_output_file_io()
 
             # Test calculations of IOs with quantities (Problem: calculations assume unique output group for each input.
-            # This is not the case in the GFPMpt)
+            # This is not the case in TiMBA)
             """(Pipeline_Agg.interm_agg_production_data,
              Pipeline_Agg.production_data) = Pipeline_Agg.aggregate_production_data(
                 intermediate_aggregation=True)

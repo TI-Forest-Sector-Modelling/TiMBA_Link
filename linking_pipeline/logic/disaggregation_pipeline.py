@@ -1,13 +1,14 @@
 # -----------------------------------------------------
-# GFPMpt_linking_pipeline - disaggregation_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
-# GCE-output disaggregation to GFPMpt (spatial and sectoral disaggregation)
-# Status: 04.2024
-# Last update: 04.2024
+# CGE_linking_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
+# Soft linkage of TiMBA to selected CGE (spatial and sectoral aggregation and disaggregation)
+# Projects: BioSDG, CarbonLeak
 # -----------------------------------------------------
 
 # imports
 import pandas as pd
 import numpy as np
+import pickle
+import gzip
 import os
 import shutil
 from pathlib import Path
@@ -20,7 +21,7 @@ from linking_pipeline.parameters.defines import Constants, ProductStructures
 class DisaggregateCGEResults(object):
     def __init__(self,
                  current_scenario: str,
-                 input_path_gfpmpt: str,
+                 input_path_timba: str,
                  input_path_CGE: str,
                  input_world: str,
                  link_typ: str,
@@ -31,33 +32,36 @@ class DisaggregateCGEResults(object):
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
-        self.input_path_gfpmpt = input_path_gfpmpt
+        self.input_path_timba = input_path_timba
         self.input_path_CGE = input_path_CGE
         self.input_world = input_world
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
-        self.cge_data, self.gfpmpt_data = DisaggregateCGEResults.readin_model_data(self)
-        (self.region_key, self.region_key_gfpm, self.commodity_key, self.oecd_data, self.worldbank_data,
+        self.cge_data, self.timba_data = DisaggregateCGEResults.readin_model_data(self)
+        (self.region_key, self.region_key_timba, self.commodity_key, self.oecd_data, self.worldbank_data,
          self.exogenous_change_structure, self.start_year, self.end_year, self.year_for_avg
          ) = DisaggregateCGEResults.readin_help_data(self)
 
     def readin_model_data(self):
         """
         Read in projection data from CGE for disaggregation. Processed data are specific to the linked CGE and the
-        project. Add specific if-statements in the following to account for project specific GFPMpt-CGE-linkages.
+        project. Add specific if-statements in the following to account for project specific TiMBA-CGE-linkages.
         :return: Project and CGE model specific return (see in function for details)
         """
+        self.Logger.info(f'Read in TiMBA results {self.input_path_timba}.')
+        src_path = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
 
-        self.Logger.info(f'Read in GFPMpt results {self.input_path_gfpmpt}.')
-        import pickle
-        src_path = f'{self.sfile}\\data\\input\\{self.input_path_gfpmpt}.pkl'
-        with open(src_path, "rb") as pkl_file:
-            gfpmpt_data = pickle.load(pkl_file)
+        try:
+            with open(src_path, "rb") as pkl_file:
+                timba_data = pickle.load(pkl_file)
+        except pickle.UnpicklingError:
+            with gzip.open(src_path, "rb") as pkl_file:
+                timba_data = pickle.load(pkl_file)
 
         cge_data = {}
         if self.linked_CGE == 'DART-BIO':
-            # For DART-BIO-GFPM-linkage GDP and GDPcap projections are disaggregated.
+            # For DART-BIO-TiMBA-linkage GDP and GDPcap projections are disaggregated.
             self.Logger.info(f'Read in {self.linked_CGE}_{self.project} for GDP.')
             dartbio_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_path_CGE}.csv')
             cge_data['gdp'] = dartbio_gdp_data
@@ -69,16 +73,16 @@ class DisaggregateCGEResults(object):
         else:
             self.Logger.info(f'Disaggregation procedure for other CGE models than DART-BIO are not available yet.')
 
-        return cge_data, gfpmpt_data
+        return cge_data, timba_data
 
     def readin_help_data(self):
         """
-        Read in help data to disaggregate CGE data to product- and country-structure of GFPMpt.
+        Read in help data to disaggregate CGE data to product- and country-structure of TiMBA.
         :return: Project and CGE model specific return (see in function for details)
         """
         self.Logger.info(f"Read in help data.")
 
-        exogenous_change_data = self.gfpmpt_data['data_periods'][
+        exogenous_change_data = self.timba_data['data_periods'][
             ['Period', 'year']].drop_duplicates().reset_index(drop=True)
         start_year = exogenous_change_data['year'][0]
         end_year = exogenous_change_data['year'][max(exogenous_change_data.index)]
@@ -92,11 +96,11 @@ class DisaggregateCGEResults(object):
             exogenous_change_structure[f'Period_{period}'] = [year_prev, period_len]
             year_prev = year
 
-        gfpmpt_commodities = self.gfpmpt_data['data_periods']['CommodityCode'].unique()
+        timba_commodities = self.timba_data['data_periods']['CommodityCode'].unique()
 
-        if len(gfpmpt_commodities) == 14:
+        if len(timba_commodities) == 14:
             commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14.value)
-        if len(gfpmpt_commodities) == 16:
+        if len(timba_commodities) == 16:
             if self.project == 'BioSDG':
                 commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16_biosdg.value)
             else:
@@ -127,21 +131,21 @@ class DisaggregateCGEResults(object):
             worldbank_data_collector['gdp'] = worldbank_gdp_data
             worldbank_data_collector['pop'] = worldbank_pop_data
 
-            region_key_gfpm = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
-            region_key_gfpm = region_key_gfpm.parse('m_Country')
-            region_key_gfpm = region_key_gfpm[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
-                                               'ISO-Code']]
+            region_key_timba = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
+            region_key_timba = region_key_timba.parse('m_Country')
+            region_key_timba = region_key_timba[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
+                                                 'ISO-Code']]
 
             region_oecd_worldbank = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_oecd_countries.xlsx')
             region_oecd_worldbank = region_oecd_worldbank.parse('Country_codes').dropna()
 
-            region_key_all = region_key_gfpm.merge(region_oecd_worldbank, left_on="ISO-Code",
+            region_key_all = region_key_timba.merge(region_oecd_worldbank, left_on="ISO-Code",
                                                    right_on="Worldbank_Ccodes", how="left"
                                                    ).dropna().reset_index(drop=True)
             region_key_all = region_key_all[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
                                              'ISO-Code', 'OECD_Ccodes']]
 
-            return (region_key_all, region_key_gfpm, commodity_key, oecd_data_collector, worldbank_data_collector,
+            return (region_key_all, region_key_timba, commodity_key, oecd_data_collector, worldbank_data_collector,
                     exogenous_change_structure, start_year, end_year, years_for_average)
 
         else:
@@ -150,7 +154,7 @@ class DisaggregateCGEResults(object):
     def calc_worldbank_gdp_weights(self):
         """
         Calculates GDP weights based on 3-years average of GDP data from Worldbank to disaggregate CGE data of GDP to
-        country level of GFPMpt. Disaggregation of GDP data assumes that GDP shares of countries in each CGE region is
+        country level of TiMBA. Disaggregation of GDP data assumes that GDP shares of countries in each CGE region is
         not changing over the projection period.
         :return: GDP weights for each country in each regions of the linked CGE model.
         """
@@ -184,7 +188,7 @@ class DisaggregateCGEResults(object):
     def calc_worldbank_pop_weights(self):
         """
         Calculates population weights based on 3-years average of population data from Worldbank to disaggregate CGE
-        data of population to country level of GFPMpt. Disaggregation of population data assumes that GDP shares of
+        data of population to country level of TiMBA. Disaggregation of population data assumes that GDP shares of
         countries in each CGE region is not changing over the projection period.
         :return: Population weights for each country in each regions of the linked CGE model.
         """
@@ -280,9 +284,9 @@ class DisaggregateCGEResults(object):
     def calc_growth_rate(self, target_parameter: pd.DataFrame):
         """
         Calculate annual growth rate of economic variables (GDP and GDP per capita) projected by linked CGE and
-        disaggregated to GFPMpt country level
+        disaggregated to TiMBA country level
         :param target_parameter: Parameter for which growth rates will be calculated
-        :return:
+        :return: Calculated growth rate
         """
         self.Logger.info(f'Calculate growth rate for {target_parameter}.')
         growth_rate = target_parameter[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
@@ -302,11 +306,10 @@ class DisaggregateCGEResults(object):
 
     def update_exogChange(self):
         """
-        Updates exogChange-sheet in specified World-file for GFPMpt with:
+        Updates exogChange-sheet in specified World-file for TiMBA with:
         - New annual growth rates for GDP (for demand and supply)
         - New annual growth rates for GDP per capita (for forest)
         Updated World input file is saved in Output.
-        Notice: New World-file is readable for GFPMpt only not for original GFPM.
         """
         self.Logger.info(f"Update World-file (ExogChange-sheet) with disaggregate Data.")
         world_to_update = pd.ExcelFile(f'{self.sfile}\\data\\input\\{self.input_world}.xlsx')
@@ -330,7 +333,7 @@ class DisaggregateCGEResults(object):
                                            (temp_ExogChange['Unnamed: 9'] != -1)].index
             index_forest = temp_ExogChange[temp_ExogChange[filter_col] == 'F'].index
 
-            reformated_growth_rate_gdp = self.region_key_gfpm.merge(
+            reformated_growth_rate_gdp = self.region_key_timba.merge(
                 self.growth_rate_gdp[['GFPM_CountryCode', f'{year}']],
                 left_on='GFPM_CountryCode',
                 right_on='GFPM_CountryCode', how='left')
@@ -350,7 +353,7 @@ class DisaggregateCGEResults(object):
                                                              right_on='GFPM_CountryCode',
                                                              how='left')
 
-            reformated_growth_rate_gdp_cap = self.region_key_gfpm.merge(
+            reformated_growth_rate_gdp_cap = self.region_key_timba.merge(
                 self.growth_rate_gdp_cap[['GFPM_CountryCode', f'{year}']], left_on='GFPM_CountryCode',
                 right_on='GFPM_CountryCode', how='left')
             reformated_growth_rate_gdp_cap = reformated_growth_rate_gdp_cap[['GFPM_CountryCode', f'{year}']].fillna(0)
@@ -399,7 +402,7 @@ class DisaggregateCGEResults(object):
     def main_disaggregation_pipeline(self):
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
-            input_path_gfpmpt=self.input_path_gfpmpt,
+            input_path_timba=self.input_path_timba,
             input_path_CGE=self.input_path_CGE,
             input_world=self.input_world,
             link_typ=self.link_typ,
