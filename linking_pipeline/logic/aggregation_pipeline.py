@@ -8,6 +8,8 @@
 # imports
 import pandas as pd
 import numpy as np
+import pickle
+import gzip
 import os
 from pathlib import Path
 import datetime as dt
@@ -41,10 +43,15 @@ class AggregateGFPMptResults(object):
         :return pd.DataFrame: GFPMpt-data
         """
         self.Logger.info(f"Read in GFPMpt results {self.input_path_gfpmpt}.")
-        import pickle
         src_path = f'{self.sfile}\\data\\input\\{self.input_path_gfpmpt}.pkl'
-        with open(src_path, "rb") as pkl_file:
-            gfpmpt_data = pickle.load(pkl_file)
+
+        try:
+            with open(src_path, "rb") as pkl_file:
+                gfpmpt_data = pickle.load(pkl_file)
+        except pickle.UnpicklingError:
+            with gzip.open(src_path, "rb") as pkl_file:
+                gfpmpt_data = pickle.load(pkl_file)
+
         return gfpmpt_data
 
     def readin_help_data(self):
