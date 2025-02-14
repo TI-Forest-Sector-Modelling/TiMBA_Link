@@ -1,93 +1,63 @@
-# GFPMpt_Linking_pipeline
+# CGE and model linking pipeline
 
+--------------
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://git-int.thuenen.de/tomke.honkomp/gfpmpt_linking_pipeline.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://git-int.thuenen.de/tomke.honkomp/gfpmpt_linking_pipeline/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
+<!-- TOC -->
+- [Description](#description)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Processed data](#processed-data)
+- [Support](#support)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Authors](#authors-and-acknowledgment)
+- [License](#license)
+- [Project status](#project-status)
+<!-- TOC -->
 
 ## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+This project is an add-on application for the [Timber market Model for policy-Based Analysis](https://github.com/TI-Forest-Sector-Modelling/TiMBA) (TiMBA).
+As part of TiMBA-Workflow (see Figure 1), the application supports the linkage of TiMBA with computable general equilibrium
+(CGE) and other models by aggregating TiMBA results and disaggregating CGE results automatically based on user inputs. 
+The application allows to efficiently soft link TiMBA with divers other models via an exchange of data.
+It is planned to extend the project in different regards to allow the linkage of various variables depending of 
+project-related research questions (see [Roadmap](#roadmap)).
+
+![TiMBA_software_workflow](.\images\TiMBA_planned_workflow.png)
+
+**Figure 1:** Software workflow of TiMBA, including the scenario input generator
 
 ## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Todo add badges for the project based on TiMBA project
 
 ## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Todo verify if visuals can be included.
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Todo add installation description
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Todo add workflow how to use the scenario input generator
+
+## Processed data
+Todo add information about the processed data
 
 ## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+A continuous upgrade of the project to newer Python and package versions is planned but will depend on available time
+capacities within the TI-FSM team.
 
 ## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Todo add roadmap
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Todo it has to be clarified if the project should be made publically available or only used for internal purposes
 
 ## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+The project has been initiated and written by [Tomke Honkomp](https://www.thuenen.de/en/fachinstitute/waldwirtschaft/personal/wissenschaftliches-personal/tomke-honkomp-msc) ([ORCID](https://orcid.org/0000-0002-6719-0190), [GitHub](https://github.com/tomkeH)).
+The project has been further developed by the TI-FSM team and uses data processed by the TI-FSM team.
 
 ## License
-For open source projects, say how it is licensed.
+Todo clarify license for the project (might be not necessary if the project is intended for internal use)
 
 ## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+The project is active and is continously extended when time capacities within the TI-FSM team are available.
