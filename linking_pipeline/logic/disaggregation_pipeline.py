@@ -39,9 +39,18 @@ class DisaggregateCGEResults(object):
         self.linked_CGE = linked_CGE
         self.project = project
         self.cge_data, self.timba_data = DisaggregateCGEResults.readin_model_data(self)
-        (self.region_key, self.region_key_timba, self.commodity_key, self.oecd_data, self.worldbank_data,
-         self.exogenous_change_structure, self.start_year, self.end_year, self.year_for_avg
-         ) = DisaggregateCGEResults.readin_help_data(self)
+
+        self.region_key = None
+        self.region_key_timba = None
+        self.commodity_key = None
+        self.oecd_data = None
+        self.worldbank_data = None
+        self.fra_data = None
+        self.cge_forest_data = None
+        self.exogenous_change_structure = None
+        self.start_year = None
+        self.end_year = None
+        self.year_for_avg = None
 
     def readin_model_data(self):
         """
@@ -106,6 +115,11 @@ class DisaggregateCGEResults(object):
             else:
                 commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16.value)
 
+        region_key_timba = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
+        region_key_timba = region_key_timba.parse('m_Country')
+        region_key_timba = region_key_timba[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
+                                             'ISO-Code']]
+
         if self.linked_CGE == 'DART-BIO':
 
             oecd_data_collector = {}
@@ -131,11 +145,6 @@ class DisaggregateCGEResults(object):
             worldbank_data_collector['gdp'] = worldbank_gdp_data
             worldbank_data_collector['pop'] = worldbank_pop_data
 
-            region_key_timba = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
-            region_key_timba = region_key_timba.parse('m_Country')
-            region_key_timba = region_key_timba[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
-                                                 'ISO-Code']]
-
             region_oecd_worldbank = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_oecd_countries.xlsx')
             region_oecd_worldbank = region_oecd_worldbank.parse('Country_codes').dropna()
 
@@ -145,11 +154,26 @@ class DisaggregateCGEResults(object):
             region_key_all = region_key_all[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
                                              'ISO-Code', 'OECD_Ccodes']]
 
-            return (region_key_all, region_key_timba, commodity_key, oecd_data_collector, worldbank_data_collector,
-                    exogenous_change_structure, start_year, end_year, years_for_average)
+            self.region_key = region_key_all
+            self.oecd_data = oecd_data_collector
+            self.worldbank_data = worldbank_data_collector
+            self.year_for_avg = years_for_average
 
-        else:
-            self.Logger.info(f'Disaggregation procedure for other CGE models than DART-BIO are not available yet.')
+        if self.linked_CGE == 'MAGNET':
+
+            cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet_reference_scenario.xlsx")
+            cge_forest_data = cge_forest_data.parse('iter_0')
+
+            fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
+
+            self.cge_forest_data = cge_forest_data
+            self.fra_data = fra_forest_data
+
+        self.exogenous_change_structure = exogenous_change_structure
+        self.start_year = start_year
+        self.end_year = end_year
+        self.commodity_key = commodity_key
+        self.region_key_timba = region_key_timba
 
     def calc_worldbank_gdp_weights(self):
         """
@@ -219,6 +243,36 @@ class DisaggregateCGEResults(object):
 
         return worldbank_pop_data
 
+    def calc_forest_weights(self):
+        """
+        Calculates country-specific weights for each CGE region based on forest data provided by the forest resource
+        assessment.
+        """
+        fra_data = self.fra_data[["ISO", "FRA_forest_area_km2"]]
+        geo_data = self.region_key_timba
+
+        cge_region = f"{self.linked_CGE}_{self.project}"
+
+        geo_data = geo_data[geo_data["GFPM_CountryCode"] != "--"].reset_index(drop=True)
+        forest_weights = geo_data.merge(fra_data, left_on="ISO-Code", right_on="ISO", how="left")
+        forest_weights = forest_weights.fillna(0)
+
+        forest_data_agg = forest_weights.groupby([cge_region]
+                                                 )["FRA_forest_area_km2"].sum(numeric_only=True).reset_index()
+        forest_weights["forest_area_cge_region_km2"] = pd.Series(dtype="float64")
+
+        for region in forest_data_agg[cge_region].unique():
+            region_index = forest_weights[forest_weights[cge_region] == region].index
+            region_forest_data = float(forest_data_agg[forest_data_agg[cge_region] == region]["FRA_forest_area_km2"])
+            forest_weights.loc[region_index, "forest_area_cge_region_km2"] = region_forest_data
+
+        forest_weights["forest_weights"] = (forest_weights["FRA_forest_area_km2"] /
+                                            forest_weights["forest_area_cge_region_km2"])
+
+        forest_weights = forest_weights[["GFPM_CountryCode", cge_region, "forest_weights"]]
+
+        return forest_weights
+
     def disagg_gdp(self):
         """
         Disaggregate CGE data for GDP using calculated GDP weights based on Worldbank data. Converting GDP data from
@@ -263,6 +317,9 @@ class DisaggregateCGEResults(object):
             disagg_pop_data_fin = pd.concat([disagg_pop_data_fin, temp_disagg_pop], axis=1)
 
         return disagg_pop_data_fin
+
+    def disagg_forest(self):
+        pass
 
     def calc_gdp_per_capita(self):
         """
@@ -409,6 +466,9 @@ class DisaggregateCGEResults(object):
             linked_CGE=self.linked_CGE,
             project=self.project
         )
+
+        DisaggregateCGEResults.readin_help_data(Pipeline_Disagg)
+
         if self.linked_CGE == 'DART-BIO':
             Pipeline_Disagg.worldbank_gdp_weights = Pipeline_Disagg.calc_worldbank_gdp_weights()
             Pipeline_Disagg.worldbank_pop_weights = Pipeline_Disagg.calc_worldbank_pop_weights()
@@ -427,8 +487,8 @@ class DisaggregateCGEResults(object):
             Pipeline_Disagg.update_World()
 
         elif self.linked_CGE == 'MAGNET':
-            # todo for CarbonLeak
-            Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
+            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights()
+            Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest()
 
         else:
             Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
