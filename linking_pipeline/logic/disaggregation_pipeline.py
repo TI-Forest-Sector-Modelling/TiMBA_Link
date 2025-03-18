@@ -38,7 +38,7 @@ class DisaggregateCGEResults(object):
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
-        self.cge_data, self.timba_data = DisaggregateCGEResults.readin_model_data(self)
+        self.cge_data, self.timba_data, self.timba_input = DisaggregateCGEResults.readin_model_data(self)
 
         self.region_key = None
         self.region_key_timba = None
@@ -59,14 +59,22 @@ class DisaggregateCGEResults(object):
         :return: Project and CGE model specific return (see in function for details)
         """
         self.Logger.info(f'Read in TiMBA results {self.input_path_timba}.')
-        src_path = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
+        src_path_1 = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
+        src_path_2 = f'{self.sfile}\\data\\input\\{self.input_world}.pkl'
 
         try:
-            with open(src_path, "rb") as pkl_file:
+            with open(src_path_1, "rb") as pkl_file:
                 timba_data = pickle.load(pkl_file)
         except pickle.UnpicklingError:
-            with gzip.open(src_path, "rb") as pkl_file:
+            with gzip.open(src_path_1, "rb") as pkl_file:
                 timba_data = pickle.load(pkl_file)
+
+        try:
+            with open(src_path_2, "rb") as pkl_file:
+                timba_input = pickle.load(pkl_file)
+        except pickle.UnpicklingError:
+            with gzip.open(src_path_2, "rb") as pkl_file:
+                timba_input = pickle.load(pkl_file)
 
         cge_data = {}
         if self.linked_CGE == 'DART-BIO':
@@ -82,7 +90,7 @@ class DisaggregateCGEResults(object):
         else:
             self.Logger.info(f'Disaggregation procedure for other CGE models than DART-BIO are not available yet.')
 
-        return cge_data, timba_data
+        return cge_data, timba_data, timba_input
 
     def readin_help_data(self):
         """
