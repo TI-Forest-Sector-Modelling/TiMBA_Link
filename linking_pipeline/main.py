@@ -55,7 +55,8 @@ if __name__ == '__main__':
                                                          )
 
     if pipeline.disaggregation_switch:
-        DisaggregateCGEResults.main_disaggregation_pipeline(self=pipeline
+        DisaggregateCGEResults.main_disaggregation_pipeline(self=pipeline,
+                                                            updated_file="pkl"  # "xlsx"
                                                             )
 
 

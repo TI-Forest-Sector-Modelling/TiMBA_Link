@@ -12,6 +12,7 @@ import gzip
 import os
 import shutil
 from pathlib import Path
+from linking_pipeline.parameters.paths import (INPUT_PATH, OUTPUT_PATH)
 from openpyxl import load_workbook
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
@@ -38,10 +39,20 @@ class DisaggregateCGEResults(object):
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
-        self.cge_data, self.timba_data = DisaggregateCGEResults.readin_model_data(self)
-        (self.region_key, self.region_key_timba, self.commodity_key, self.oecd_data, self.worldbank_data,
-         self.exogenous_change_structure, self.start_year, self.end_year, self.year_for_avg
-         ) = DisaggregateCGEResults.readin_help_data(self)
+        self.cge_data, self.timba_data, self.timba_input = DisaggregateCGEResults.readin_model_data(self)
+
+        self.region_key = None
+        self.region_key_timba = None
+        self.commodity_key = None
+        self.oecd_data = None
+        self.worldbank_data = None
+        self.fra_data = None
+        self.cge_forest_data = None
+        self.exogenous_change_structure = None
+        self.exogenous_change_structure_cge = None
+        self.start_year = None
+        self.end_year = None
+        self.year_for_avg = None
 
     def readin_model_data(self):
         """
@@ -50,14 +61,22 @@ class DisaggregateCGEResults(object):
         :return: Project and CGE model specific return (see in function for details)
         """
         self.Logger.info(f'Read in TiMBA results {self.input_path_timba}.')
-        src_path = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
+        src_path_1 = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
+        src_path_2 = f'{self.sfile}\\data\\input\\{self.input_world}.pkl'
 
         try:
-            with open(src_path, "rb") as pkl_file:
+            with open(src_path_1, "rb") as pkl_file:
                 timba_data = pickle.load(pkl_file)
         except pickle.UnpicklingError:
-            with gzip.open(src_path, "rb") as pkl_file:
+            with gzip.open(src_path_1, "rb") as pkl_file:
                 timba_data = pickle.load(pkl_file)
+
+        try:
+            with open(src_path_2, "rb") as pkl_file:
+                timba_input = pickle.load(pkl_file)
+        except pickle.UnpicklingError:
+            with gzip.open(src_path_2, "rb") as pkl_file:
+                timba_input = pickle.load(pkl_file)
 
         cge_data = {}
         if self.linked_CGE == 'DART-BIO':
@@ -73,7 +92,7 @@ class DisaggregateCGEResults(object):
         else:
             self.Logger.info(f'Disaggregation procedure for other CGE models than DART-BIO are not available yet.')
 
-        return cge_data, timba_data
+        return cge_data, timba_data, timba_input
 
     def readin_help_data(self):
         """
@@ -106,6 +125,11 @@ class DisaggregateCGEResults(object):
             else:
                 commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16.value)
 
+        region_key_timba = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
+        region_key_timba = region_key_timba.parse('m_Country')
+        region_key_timba = region_key_timba[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
+                                             'ISO-Code']]
+
         if self.linked_CGE == 'DART-BIO':
 
             oecd_data_collector = {}
@@ -131,11 +155,6 @@ class DisaggregateCGEResults(object):
             worldbank_data_collector['gdp'] = worldbank_gdp_data
             worldbank_data_collector['pop'] = worldbank_pop_data
 
-            region_key_timba = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
-            region_key_timba = region_key_timba.parse('m_Country')
-            region_key_timba = region_key_timba[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
-                                                 'ISO-Code']]
-
             region_oecd_worldbank = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_oecd_countries.xlsx')
             region_oecd_worldbank = region_oecd_worldbank.parse('Country_codes').dropna()
 
@@ -145,11 +164,37 @@ class DisaggregateCGEResults(object):
             region_key_all = region_key_all[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
                                              'ISO-Code', 'OECD_Ccodes']]
 
-            return (region_key_all, region_key_timba, commodity_key, oecd_data_collector, worldbank_data_collector,
-                    exogenous_change_structure, start_year, end_year, years_for_average)
+            self.region_key = region_key_all
+            self.oecd_data = oecd_data_collector
+            self.worldbank_data = worldbank_data_collector
+            self.year_for_avg = years_for_average
 
-        else:
-            self.Logger.info(f'Disaggregation procedure for other CGE models than DART-BIO are not available yet.')
+        if self.linked_CGE == 'MAGNET':
+
+            cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet_reference_scenario.xlsx")
+            cge_forest_data = cge_forest_data.parse('iter_0')
+
+            fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
+
+            self.cge_forest_data = cge_forest_data
+            self.fra_data = fra_forest_data
+
+            exogenous_change_structure_cge = {}
+            period_list = list(cge_forest_data["year"].unique())
+            period_runner = 1
+            year_prev = period_list[0] - 1
+            for year in period_list:
+                period_len = year - year_prev
+                exogenous_change_structure_cge[f'Period_{period_runner}'] = [year_prev, period_len]
+                period_runner += 1
+                year_prev = year
+
+        self.exogenous_change_structure = exogenous_change_structure
+        self.exogenous_change_structure_cge = exogenous_change_structure_cge
+        self.start_year = start_year
+        self.end_year = end_year
+        self.commodity_key = commodity_key
+        self.region_key_timba = region_key_timba
 
     def calc_worldbank_gdp_weights(self):
         """
@@ -219,6 +264,37 @@ class DisaggregateCGEResults(object):
 
         return worldbank_pop_data
 
+    def calc_forest_weights(self):
+        """
+        Calculates country-specific weights for each CGE region based on forest data provided by the forest resource
+        assessment.
+        :return: DataFrame with country-specific weights
+        """
+        fra_data = self.fra_data[["ISO", "FRA_forest_area_km2"]]
+        geo_data = self.region_key_timba
+
+        cge_region = f"{self.linked_CGE}_{self.project}"
+
+        geo_data = geo_data[geo_data["GFPM_CountryCode"] != "--"].reset_index(drop=True)
+        forest_weights = geo_data.merge(fra_data, left_on="ISO-Code", right_on="ISO", how="left")
+        forest_weights = forest_weights.fillna(0)
+
+        forest_data_agg = forest_weights.groupby([cge_region]
+                                                 )["FRA_forest_area_km2"].sum(numeric_only=True).reset_index()
+        forest_weights["forest_area_cge_region_km2"] = pd.Series(dtype="float64")
+
+        for region in forest_data_agg[cge_region].unique():
+            region_index = forest_weights[forest_weights[cge_region] == region].index
+            region_forest_data = float(forest_data_agg[forest_data_agg[cge_region] == region]["FRA_forest_area_km2"])
+            forest_weights.loc[region_index, "forest_area_cge_region_km2"] = region_forest_data
+
+        forest_weights["forest_weights"] = (forest_weights["FRA_forest_area_km2"] /
+                                            forest_weights["forest_area_cge_region_km2"])
+
+        forest_weights = forest_weights[["GFPM_CountryCode", cge_region, "forest_weights"]]
+
+        return forest_weights
+
     def disagg_gdp(self):
         """
         Disaggregate CGE data for GDP using calculated GDP weights based on Worldbank data. Converting GDP data from
@@ -263,6 +339,103 @@ class DisaggregateCGEResults(object):
             disagg_pop_data_fin = pd.concat([disagg_pop_data_fin, temp_disagg_pop], axis=1)
 
         return disagg_pop_data_fin
+
+    def disagg_forest(self):
+        """
+        Disaggregates forestland projections from linked GCE to the geographical aggregation of TiMBA. This calculation
+        assumes that the distribution of forestland across countries of each geographical aggregate from the CGE will
+        not change.
+        :return: Disaggregated forestland projections
+        """
+        cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet_reference_scenario.xlsx")
+        cge_forest_data = cge_forest_data.parse("iter_0")
+
+        forest_weights = self.forest_weights
+
+        disagg_forest_data = forest_weights.merge(cge_forest_data, left_on=f"{self.linked_CGE}_{self.project}",
+                                                  right_on="region", how="left")
+        disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
+                                                          disagg_forest_data["forestland_change"])
+
+        return disagg_forest_data
+
+    def align_forest_data(self, updated_file):
+        """
+        Alignes disaggregated forest data with the structure of the exogenous change sheet of pkl or xlsx scenario input
+        files
+        :param updated_file: Selected file format
+        """
+        forest_data = self.disagg_forest_data
+        forest_data_new = pd.DataFrame()
+        period_data_timba = self.exogenous_change_structure
+        period_data_cge = self.exogenous_change_structure_cge
+
+        if len(period_data_timba) > len(period_data_cge):  # selects the smallest period structure to align with
+            period_structure = period_data_cge
+        else:
+            period_structure = period_data_timba
+
+        for period in period_structure:
+
+            period_timba_tmp = period_data_timba[period]
+            period_cge_tmp = period_data_cge[period]
+
+            period_year_timba = period_timba_tmp[0]
+            period_length_timba = period_timba_tmp[1]
+
+            if period_timba_tmp == period_cge_tmp:
+                forest_data_tmp = forest_data[forest_data["year"] == period_year_timba + period_length_timba].copy()
+                forest_data_tmp["year"] = period_year_timba
+                forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
+            else:
+                period_year_cge = period_cge_tmp[0]
+                period_length_cge = period_cge_tmp[1]
+                forest_data_tmp = forest_data[forest_data["year"] == period_year_cge + period_length_cge].copy()
+                forest_data_tmp["disagg_forestland_change"] = (forest_data_tmp["disagg_forestland_change"] /
+                                                               period_length_cge)
+                for year in range(period_year_cge, period_year_cge + period_length_cge):
+                    forest_data_tmp["year"] = year
+                    forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
+
+        if updated_file == "pkl":
+            timba_input_exog_forest = self.timba_input["ExogChangeForest"]["data_aligned"]
+            timba_input_exog_forest_new = pd.DataFrame()
+            for period in period_data_timba.keys():
+                period_num = int(period.split("_")[1])
+                period_year = period_data_timba[period][0]
+                forest_data_tmp = forest_data_new[
+                    forest_data_new["year"] == period_year].copy().reset_index(drop=True)
+                forest_data_exog = timba_input_exog_forest[
+                    timba_input_exog_forest["Period"] == period_num].copy().reset_index(drop=True)
+                forest_data_aligned = forest_data_exog.merge(forest_data_tmp,
+                                                             left_on="RegionCode",
+                                                             right_on="GFPM_CountryCode",
+                                                             how="left")
+                forest_data_aligned["disagg_forestland_change"] = (
+                    forest_data_aligned["disagg_forestland_change"].fillna(0))
+                forest_data_exog["AreaChange"] = forest_data_aligned["disagg_forestland_change"]
+                timba_input_exog_forest_new = pd.concat([timba_input_exog_forest_new,
+                                                         forest_data_exog], axis=0).reset_index(drop=True)
+            self.timba_input["ExogChangeForest"]["data_aligned"] = timba_input_exog_forest_new
+
+        else:  # for xlsx scenario input files
+            pass
+            # TODO save process as xlsx-scenario input not implemented
+
+    def update_world_forest(self, updated_file):
+        """
+        Saves updated scenario input file for TiMBA in pkl or xlsx format
+        :param updated_file: Selected file format
+        """
+        if updated_file == "pkl":
+            import pickle
+            import gzip
+            target_filepath = os.path.join(OUTPUT_PATH, f"updated_{self.input_path_timba}.pkl")
+            with gzip.open(target_filepath, "wb") as pkl_file:
+                pickle.dump(self.timba_input, pkl_file)
+        else:  # for xlsx scenario input files
+            pass
+            # TODO save process as xlsx-scenario input not implemented
 
     def calc_gdp_per_capita(self):
         """
@@ -399,7 +572,7 @@ class DisaggregateCGEResults(object):
                             mode='a', if_sheet_exists='replace') as writer:
             self.new_exogChange.to_excel(writer, sheet_name='ExogChange', index=False)
 
-    def main_disaggregation_pipeline(self):
+    def main_disaggregation_pipeline(self, updated_file):
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
             input_path_timba=self.input_path_timba,
@@ -409,6 +582,9 @@ class DisaggregateCGEResults(object):
             linked_CGE=self.linked_CGE,
             project=self.project
         )
+
+        DisaggregateCGEResults.readin_help_data(Pipeline_Disagg)
+
         if self.linked_CGE == 'DART-BIO':
             Pipeline_Disagg.worldbank_gdp_weights = Pipeline_Disagg.calc_worldbank_gdp_weights()
             Pipeline_Disagg.worldbank_pop_weights = Pipeline_Disagg.calc_worldbank_pop_weights()
@@ -427,8 +603,10 @@ class DisaggregateCGEResults(object):
             Pipeline_Disagg.update_World()
 
         elif self.linked_CGE == 'MAGNET':
-            # todo for CarbonLeak
-            Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
+            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights()
+            Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest()
+            Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.align_forest_data(updated_file=updated_file)
+            Pipeline_Disagg.update_world_forest(updated_file=updated_file)
 
         else:
             Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
