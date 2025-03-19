@@ -176,6 +176,7 @@ class DisaggregateCGEResults(object):
 
             fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
 
+            cge_forest_data["forestland_change"] = cge_forest_data["forestland_change"] / 100  # Convert %
             self.cge_forest_data = cge_forest_data
             self.fra_data = fra_forest_data
 
@@ -347,9 +348,7 @@ class DisaggregateCGEResults(object):
         not change.
         :return: Disaggregated forestland projections
         """
-        cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet_reference_scenario.xlsx")
-        cge_forest_data = cge_forest_data.parse("iter_0")
-
+        cge_forest_data = self.cge_forest_data
         forest_weights = self.forest_weights
 
         disagg_forest_data = forest_weights.merge(cge_forest_data, left_on=f"{self.linked_CGE}_{self.project}",
@@ -605,7 +604,7 @@ class DisaggregateCGEResults(object):
         elif self.linked_CGE == 'MAGNET':
             Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights()
             Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest()
-            Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.align_forest_data(updated_file=updated_file)
+            Pipeline_Disagg.align_forest_data(updated_file=updated_file)
             Pipeline_Disagg.update_world_forest(updated_file=updated_file)
 
         else:
