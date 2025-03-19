@@ -265,34 +265,61 @@ class DisaggregateCGEResults(object):
 
         return worldbank_pop_data
 
-    def calc_forest_weights(self):
+    def calc_forest_weights(self, split_forest_type: bool):
         """
         Calculates country-specific weights for each CGE region based on forest data provided by the forest resource
         assessment.
+        :param split_forest_type: Flag controls if forest area type (managed and unmanaged forest) are splitted
         :return: DataFrame with country-specific weights
         """
-        fra_data = self.fra_data[["ISO", "FRA_forest_area_km2"]]
+        fra_data = self.fra_data[["regions", "iso3", "forest_area_2020", "land_area_2020", "primary_forest_area_2010",
+                                  "primary_forest_area_2015", "primary_forest_area_2020"]]
         geo_data = self.region_key_timba
 
         cge_region = f"{self.linked_CGE}_{self.project}"
 
         geo_data = geo_data[geo_data["GFPM_CountryCode"] != "--"].reset_index(drop=True)
-        forest_weights = geo_data.merge(fra_data, left_on="ISO-Code", right_on="ISO", how="left")
-        forest_weights = forest_weights.fillna(0)
+        forest_weights = geo_data.merge(fra_data, left_on="ISO-Code", right_on="iso3", how="left")
+
+        forest_weights[["forest_area_2020", "land_area_2020"]] = (
+            forest_weights[["forest_area_2020", "land_area_2020"]].fillna(0))
 
         forest_data_agg = forest_weights.groupby([cge_region]
-                                                 )["FRA_forest_area_km2"].sum(numeric_only=True).reset_index()
-        forest_weights["forest_area_cge_region_km2"] = pd.Series(dtype="float64")
+                                                 )["forest_area_2020"].sum(numeric_only=True).reset_index()
+        forest_weights["forest_area_cge_2020"] = pd.Series(dtype="float64")
 
         for region in forest_data_agg[cge_region].unique():
             region_index = forest_weights[forest_weights[cge_region] == region].index
-            region_forest_data = float(forest_data_agg[forest_data_agg[cge_region] == region]["FRA_forest_area_km2"])
-            forest_weights.loc[region_index, "forest_area_cge_region_km2"] = region_forest_data
+            region_forest_data = float(forest_data_agg[forest_data_agg[cge_region] == region]["forest_area_2020"])
+            forest_weights.loc[region_index, "forest_area_cge_2020"] = region_forest_data
 
-        forest_weights["forest_weights"] = (forest_weights["FRA_forest_area_km2"] /
-                                            forest_weights["forest_area_cge_region_km2"])
+        forest_weights["forest_weights"] = (forest_weights["forest_area_2020"] /
+                                            forest_weights["forest_area_cge_2020"])
 
-        forest_weights = forest_weights[["GFPM_CountryCode", cge_region, "forest_weights"]]
+        if split_forest_type:
+            iso_nan = forest_weights[forest_weights["primary_forest_area_2020"].isna()].copy()
+            iso_no_nan = forest_weights[forest_weights["primary_forest_area_2020"].notna()].copy()
+
+            iso_no_nan["unmanaged_forest_share"] = (iso_no_nan["primary_forest_area_2020"] /
+                                                    iso_no_nan["forest_area_2020"])
+            primary_forest_region = iso_no_nan.groupby(
+                ["regions"])[["forest_area_2020", "primary_forest_area_2020"]].sum().reset_index()
+            primary_forest_region["unmanaged_forest_share"] = (primary_forest_region["primary_forest_area_2020"] /
+                                                               primary_forest_region["forest_area_2020"])
+            iso_nan["unmanaged_forest_share"] = 0
+            for region in primary_forest_region["regions"].unique():
+                region_index = iso_nan[iso_nan["regions"] == region].index
+                primary_forest_share = float(
+                    primary_forest_region[primary_forest_region["regions"] == region]["unmanaged_forest_share"])
+                iso_nan.loc[region_index, "unmanaged_forest_share"] = primary_forest_share
+
+            forest_weights = pd.concat([iso_nan, iso_no_nan], axis=0).sort_values(by=['GFPM_CountryCode'])
+            forest_weights["managed_forest_share"] = 1 - forest_weights["unmanaged_forest_share"]
+
+            forest_weights = forest_weights[["GFPM_CountryCode", cge_region, "forest_weights", "managed_forest_share"]]
+
+        else:
+            forest_weights = forest_weights[["GFPM_CountryCode", cge_region, "forest_weights"]]
 
         return forest_weights
 
@@ -341,11 +368,12 @@ class DisaggregateCGEResults(object):
 
         return disagg_pop_data_fin
 
-    def disagg_forest(self):
+    def disagg_forest(self, split_forest_type: bool):
         """
         Disaggregates forestland projections from linked GCE to the geographical aggregation of TiMBA. This calculation
         assumes that the distribution of forestland across countries of each geographical aggregate from the CGE will
         not change.
+        :param split_forest_type: Flag controls if forest area type (managed and unmanaged forest) are splitted
         :return: Disaggregated forestland projections
         """
         cge_forest_data = self.cge_forest_data
@@ -353,8 +381,13 @@ class DisaggregateCGEResults(object):
 
         disagg_forest_data = forest_weights.merge(cge_forest_data, left_on=f"{self.linked_CGE}_{self.project}",
                                                   right_on="region", how="left")
-        disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
-                                                          disagg_forest_data["forestland_change"])
+        if split_forest_type:
+            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
+                                                              disagg_forest_data["managed_forest_share"] *
+                                                              disagg_forest_data["forestland_change"])
+        else:
+            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
+                                                              disagg_forest_data["forestland_change"])
 
         return disagg_forest_data
 
@@ -429,7 +462,7 @@ class DisaggregateCGEResults(object):
         if updated_file == "pkl":
             import pickle
             import gzip
-            target_filepath = os.path.join(OUTPUT_PATH, f"updated_{self.input_path_timba}.pkl")
+            target_filepath = os.path.join(OUTPUT_PATH, f"updated_{self.input_world}.pkl")
             with gzip.open(target_filepath, "wb") as pkl_file:
                 pickle.dump(self.timba_input, pkl_file)
         else:  # for xlsx scenario input files
@@ -602,8 +635,8 @@ class DisaggregateCGEResults(object):
             Pipeline_Disagg.update_World()
 
         elif self.linked_CGE == 'MAGNET':
-            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights()
-            Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest()
+            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=False)
+            Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest(split_forest_type=False)
             Pipeline_Disagg.align_forest_data(updated_file=updated_file)
             Pipeline_Disagg.update_world_forest(updated_file=updated_file)
 
