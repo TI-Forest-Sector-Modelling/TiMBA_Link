@@ -265,11 +265,12 @@ class DisaggregateCGEResults(object):
 
         return worldbank_pop_data
 
-    def calc_forest_weights(self, split_forest_type: bool):
+    def calc_forest_weights(self, split_forest_type: bool, fra_splitting: bool):
         """
         Calculates country-specific weights for each CGE region based on forest data provided by the forest resource
         assessment.
         :param split_forest_type: Flag controls if forest area type (managed and unmanaged forest) are splitted
+        :param fra_splitting: Flag controls if forest area type is splitted according to FRA method
         :return: DataFrame with country-specific weights
         """
         fra_data = self.fra_data[["regions", "iso3", "forest_area_2020", "land_area_2020", "primary_forest_area_2010",
@@ -299,11 +300,15 @@ class DisaggregateCGEResults(object):
         if split_forest_type:
             iso_nan = forest_weights[forest_weights["primary_forest_area_2020"].isna()].copy()
             iso_no_nan = forest_weights[forest_weights["primary_forest_area_2020"].notna()].copy()
-
             iso_no_nan["unmanaged_forest_share"] = (iso_no_nan["primary_forest_area_2020"] /
                                                     iso_no_nan["forest_area_2020"])
-            primary_forest_region = iso_no_nan.groupby(
-                ["regions"])[["forest_area_2020", "primary_forest_area_2020"]].sum().reset_index()
+            if fra_splitting:
+                primary_forest_region = forest_weights.groupby(
+                    ["regions"])[["forest_area_2020", "primary_forest_area_2020"]].sum().reset_index()
+            else:
+                primary_forest_region = iso_no_nan.groupby(
+                    ["regions"])[["forest_area_2020", "primary_forest_area_2020"]].sum().reset_index()
+
             primary_forest_region["unmanaged_forest_share"] = (primary_forest_region["primary_forest_area_2020"] /
                                                                primary_forest_region["forest_area_2020"])
             iso_nan["unmanaged_forest_share"] = 0
@@ -635,7 +640,8 @@ class DisaggregateCGEResults(object):
             Pipeline_Disagg.update_World()
 
         elif self.linked_CGE == 'MAGNET':
-            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=False)
+            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=True,
+                                                                                 fra_splitting=True)
             Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest(split_forest_type=False)
             Pipeline_Disagg.align_forest_data(updated_file=updated_file)
             Pipeline_Disagg.update_world_forest(updated_file=updated_file)
