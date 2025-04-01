@@ -170,21 +170,19 @@ class DisaggregateCGEResults(object):
             self.year_for_avg = years_for_average
 
         if self.linked_CGE == 'MAGNET':
-
-            cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet_reference_scenario.xlsx")
+            cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet.xlsx")
             cge_forest_data = cge_forest_data.parse('iter_0')
 
             fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
 
-            cge_forest_data["forestland_change"] = cge_forest_data["forestland_change"] / 100  # Convert %
             self.cge_forest_data = cge_forest_data
             self.fra_data = fra_forest_data
 
             exogenous_change_structure_cge = {}
             period_list = list(cge_forest_data["year"].unique())
             period_runner = 1
-            year_prev = period_list[0] - 1
-            for year in period_list:
+            year_prev = period_list[0]
+            for year in period_list[1:]:
                 period_len = year - year_prev
                 exogenous_change_structure_cge[f'Period_{period_runner}'] = [year_prev, period_len]
                 period_runner += 1
@@ -196,6 +194,45 @@ class DisaggregateCGEResults(object):
         self.end_year = end_year
         self.commodity_key = commodity_key
         self.region_key_timba = region_key_timba
+
+    def process_cge_forest_data(self, linkage_type: str):
+        """
+        Processes forest data from linked CGE
+        :param linkage_type: Defines if the linkage is continuous (= for all periods) or end-point (= for end period).
+        :return: DataFrame of processed forestland data
+        """
+        cge_forest_data = self.cge_forest_data.copy()
+
+        cge_forest_data_new = pd.DataFrame()
+        if linkage_type == "continuous":
+            start_year_index = 0
+            for end_year in cge_forest_data["year"].unique()[1:]:
+                start_year = cge_forest_data["year"].unique()[start_year_index]
+                forest_data_end = cge_forest_data[cge_forest_data["year"] == end_year].reset_index(drop=True)
+                forest_data_start = cge_forest_data[cge_forest_data["year"] == start_year].reset_index(drop=True)
+
+                forest_data_end["forestland_change"] = (
+                        (forest_data_end["forestland_change"] /
+                         forest_data_start["forestland_change"]) ** (1 / (end_year - start_year)) - 1)
+
+                cge_forest_data_new = pd.concat([cge_forest_data_new,
+                                                 forest_data_end], axis=0).reset_index(drop=True)
+                start_year_index += 1
+
+        if linkage_type == "end_point":
+            end_year = cge_forest_data["year"].max()
+            start_year = cge_forest_data["year"].min()
+
+            forest_data_end = cge_forest_data[cge_forest_data["year"] == end_year].reset_index(drop=True)
+            forest_data_start = cge_forest_data[cge_forest_data["year"] == start_year].reset_index(drop=True)
+
+            forest_data_end["forestland_change"] = (
+                    (forest_data_end["forestland_change"] /
+                     forest_data_start["forestland_change"]) ** (1 / (end_year - start_year)) - 1)
+
+            cge_forest_data_new = forest_data_end
+
+        return cge_forest_data_new
 
     def calc_worldbank_gdp_weights(self):
         """
@@ -396,11 +433,12 @@ class DisaggregateCGEResults(object):
 
         return disagg_forest_data
 
-    def align_forest_data(self, updated_file):
+    def align_forest_data(self, updated_file: bool, linkage_type: str):
         """
         Alignes disaggregated forest data with the structure of the exogenous change sheet of pkl or xlsx scenario input
         files
-        :param updated_file: Selected file format
+        :param updated_file: Selected file format.
+        :param linkage_type: Defines if the linkage is continuous (= for all periods) or end-point (= for end period).
         """
         forest_data = self.disagg_forest_data
         forest_data_new = pd.DataFrame()
@@ -411,28 +449,37 @@ class DisaggregateCGEResults(object):
             period_structure = period_data_cge
         else:
             period_structure = period_data_timba
+        if linkage_type == "continuous":
+            for period in period_structure:
 
-        for period in period_structure:
+                period_timba_tmp = period_data_timba[period]
+                period_cge_tmp = period_data_cge[period]
 
-            period_timba_tmp = period_data_timba[period]
-            period_cge_tmp = period_data_cge[period]
+                period_year_timba = period_timba_tmp[0]
+                period_length_timba = period_timba_tmp[1]
 
-            period_year_timba = period_timba_tmp[0]
-            period_length_timba = period_timba_tmp[1]
+                if period_timba_tmp == period_cge_tmp:
+                    forest_data_tmp = forest_data[forest_data["year"] == period_year_timba + period_length_timba].copy()
+                    forest_data_tmp["year"] = period_year_timba
+                    forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
+                else:
+                    period_year_cge = period_cge_tmp[0]
+                    period_length_cge = period_cge_tmp[1]
+                    forest_data_tmp = forest_data[forest_data["year"] == period_year_cge + period_length_cge].copy()
+                    forest_data_tmp["disagg_forestland_change"] = (forest_data_tmp["disagg_forestland_change"] /
+                                                                   period_length_cge)
+                    for year in range(period_year_cge, period_year_cge + period_length_cge):
+                        forest_data_tmp["year"] = year
+                        forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
 
-            if period_timba_tmp == period_cge_tmp:
-                forest_data_tmp = forest_data[forest_data["year"] == period_year_timba + period_length_timba].copy()
+        if linkage_type == "end_point":
+            for period in period_data_timba:
+                period_timba_tmp = period_data_timba[period]
+                period_year_timba = period_timba_tmp[0]
+
+                forest_data_tmp = forest_data.copy()
                 forest_data_tmp["year"] = period_year_timba
                 forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
-            else:
-                period_year_cge = period_cge_tmp[0]
-                period_length_cge = period_cge_tmp[1]
-                forest_data_tmp = forest_data[forest_data["year"] == period_year_cge + period_length_cge].copy()
-                forest_data_tmp["disagg_forestland_change"] = (forest_data_tmp["disagg_forestland_change"] /
-                                                               period_length_cge)
-                for year in range(period_year_cge, period_year_cge + period_length_cge):
-                    forest_data_tmp["year"] = year
-                    forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
 
         if updated_file == "pkl":
             timba_input_exog_forest = self.timba_input["ExogChangeForest"]["data_aligned"]
@@ -640,10 +687,11 @@ class DisaggregateCGEResults(object):
             Pipeline_Disagg.update_World()
 
         elif self.linked_CGE == 'MAGNET':
+            Pipeline_Disagg.cge_forest_data = Pipeline_Disagg.process_cge_forest_data(linkage_type=self.link_typ)
             Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=True,
                                                                                  fra_splitting=True)
             Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest(split_forest_type=False)
-            Pipeline_Disagg.align_forest_data(updated_file=updated_file)
+            Pipeline_Disagg.align_forest_data(updated_file=updated_file, linkage_type=self.link_typ)
             Pipeline_Disagg.update_world_forest(updated_file=updated_file)
 
         else:
