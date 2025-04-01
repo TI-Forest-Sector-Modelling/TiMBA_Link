@@ -714,7 +714,7 @@ class AggregateTiMBAResults(object):
                                             target_data[start_year]).rename(columns={0: end_year})
             growth_rate = pd.concat([growth_rate, temp_growth_rate], axis=1)
 
-        if link_type == 'continous':
+        if link_type == 'continuous':
             year = start_year
             for key in self.exogenous_change_structure.keys():
                 previous_year = year
@@ -892,7 +892,7 @@ class AggregateTiMBAResults(object):
         Pipeline_Agg = AggregateTiMBAResults(
             current_scenario=self.current_scenario,
             input_path_timba=self.input_path_timba,
-            link_typ=self.link_typ,  # Alternatives: 'continous', 'end_point'
+            link_typ=self.link_typ,  # Alternatives: 'continuous', 'end_point'
             linked_CGE=self.linked_CGE,  # Alternatives: 'DART-BIO', 'MAGNET'
             project=self.project  # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
             # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
