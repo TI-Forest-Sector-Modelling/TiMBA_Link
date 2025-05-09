@@ -27,7 +27,8 @@ class DisaggregateCGEResults(object):
                  input_world: str,
                  link_typ: str,
                  linked_CGE: str,
-                 project: str
+                 project: str,
+                 updated_file: str
                  ):
         self.sfile = os.path.dirname(Path(__file__).resolve().parents[0])
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
@@ -39,7 +40,7 @@ class DisaggregateCGEResults(object):
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
-        self.cge_data, self.timba_data, self.timba_input = DisaggregateCGEResults.readin_model_data(self)
+        self.cge_data, self.timba_data, self.timba_input = DisaggregateCGEResults.readin_model_data(self, updated_file)
 
         self.region_key = None
         self.region_key_timba = None
@@ -54,15 +55,16 @@ class DisaggregateCGEResults(object):
         self.end_year = None
         self.year_for_avg = None
 
-    def readin_model_data(self):
+    def readin_model_data(self, updated_file):
         """
         Read in projection data from CGE for disaggregation. Processed data are specific to the linked CGE and the
         project. Add specific if-statements in the following to account for project specific TiMBA-CGE-linkages.
+        :param updated_file: File format that has been chosen to be updated
         :return: Project and CGE model specific return (see in function for details)
         """
         self.Logger.info(f'Read in TiMBA results {self.input_path_timba}.')
         src_path_1 = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
-        src_path_2 = f'{self.sfile}\\data\\input\\{self.input_world}.pkl'
+        src_path_2 = f'{self.sfile}\\data\\input\\{self.input_world}.{updated_file}'
 
         try:
             with open(src_path_1, "rb") as pkl_file:
@@ -71,12 +73,15 @@ class DisaggregateCGEResults(object):
             with gzip.open(src_path_1, "rb") as pkl_file:
                 timba_data = pickle.load(pkl_file)
 
-        try:
-            with open(src_path_2, "rb") as pkl_file:
-                timba_input = pickle.load(pkl_file)
-        except pickle.UnpicklingError:
-            with gzip.open(src_path_2, "rb") as pkl_file:
-                timba_input = pickle.load(pkl_file)
+        if updated_file == "xlsx":
+            timba_input = pd.read_excel(src_path_2)
+        else:
+            try:
+                with open(src_path_2, "rb") as pkl_file:
+                    timba_input = pickle.load(pkl_file)
+            except pickle.UnpicklingError:
+                with gzip.open(src_path_2, "rb") as pkl_file:
+                    timba_input = pickle.load(pkl_file)
 
         cge_data = {}
         if self.linked_CGE == 'DART-BIO':
@@ -189,7 +194,8 @@ class DisaggregateCGEResults(object):
                 year_prev = year
 
         self.exogenous_change_structure = exogenous_change_structure
-        self.exogenous_change_structure_cge = exogenous_change_structure_cge
+        if self.linked_CGE == 'MAGNET':
+            self.exogenous_change_structure_cge = exogenous_change_structure_cge
         self.start_year = start_year
         self.end_year = end_year
         self.commodity_key = commodity_key
@@ -664,7 +670,8 @@ class DisaggregateCGEResults(object):
             input_world=self.input_world,
             link_typ=self.link_typ,
             linked_CGE=self.linked_CGE,
-            project=self.project
+            project=self.project,
+            updated_file=updated_file
         )
 
         DisaggregateCGEResults.readin_help_data(Pipeline_Disagg)
