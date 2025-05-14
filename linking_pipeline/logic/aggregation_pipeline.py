@@ -449,15 +449,16 @@ class AggregateTiMBAResults(object):
                                 how='left').rename(columns={'GFPMpt_Comgroup': 'Output_Comgroup'})
 
         timba_data = self.timba_data['data_periods']
-        # TODO consider to include trade in calculations
         production_data = timba_data[(timba_data['domain'] == 'Supply') |
                                      (timba_data['domain'] == 'ManufactureCost')]
 
         production_data = production_data.groupby(['RegionCode', 'CommodityCode', 'year']
                                                   )['quantity'].sum().reset_index()
 
-        export_data = timba_data[timba_data['domain'] == 'TransportationExport'].reset_index(drop=True)
-        import_data = timba_data[timba_data['domain'] == 'TransportationImport'].reset_index(drop=True)
+        export_data = timba_data[timba_data['domain'] == 'TransportationExport']
+        import_data = timba_data[timba_data['domain'] == 'TransportationImport']
+        export_data = export_data.sort_values(by=['RegionCode', 'CommodityCode', 'year']).reset_index(drop=True)
+        import_data = import_data.sort_values(by=['RegionCode', 'CommodityCode', 'year']).reset_index(drop=True)
 
         production_data['quantity'] = production_data['quantity'] + import_data['quantity'] - export_data['quantity']
 
@@ -493,17 +494,18 @@ class AggregateTiMBAResults(object):
                              ([x in ['S', 'WBP'] for x in io_data['Output_Comgroup']])].reset_index(drop=True)
         io_frs_lum = io_frs_lum[io_frs_lum['ManuFakt'] != 0].reset_index(drop=True)
         io_frs_lum['weighted_ManuFakt'] = io_frs_lum['ManuFakt'] * io_frs_lum['quantity']
-        io_frs_lum['io'] = ['io_frs_lum'] * len(io_frs_lum)
+        io_frs_lum['input'] = ['FRS'] * len(io_frs_lum)
+        io_frs_lum['output'] = ['LUM'] * len(io_frs_lum)
 
         if weighted_io:
             # Weighted averages for products to sectors
             sector_weight_mean = io_frs_lum.groupby(
-                ['RegionCode', 'year', 'io'])['quantity'].sum().reset_index()
+                ['RegionCode', 'year', 'input', 'output'])['quantity'].sum().reset_index()
             sector_weighted_ManuFakt_mean = io_frs_lum.groupby(
-                ['RegionCode', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+                ['RegionCode', 'year', 'input', 'output'])['weighted_ManuFakt'].sum().reset_index()
             sector_weighted_io = sector_weighted_ManuFakt_mean['weighted_ManuFakt'] / sector_weight_mean['quantity']
             sector_weighted_io = pd.DataFrame(sector_weighted_io).rename(columns={0: 'ManuFakt'})
-            io_info = sector_weight_mean[['RegionCode', 'year', 'io']]
+            io_info = sector_weight_mean[['RegionCode', 'year', 'input', 'output']]
             io_frs_lum = pd.concat([io_info, sector_weighted_io, sector_weight_mean['quantity']], axis=1)
 
             # Weighted averages for countries to regions
@@ -513,25 +515,25 @@ class AggregateTiMBAResults(object):
                                           how='left')
             io_frs_lum['weighted_ManuFakt'] = io_frs_lum['ManuFakt'] * io_frs_lum['quantity']
             region_weight_mean = io_frs_lum.groupby(
-                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['quantity'].sum().reset_index()
+                [f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output'])['quantity'].sum().reset_index()
             region_weighted_ManuFakt_mean = io_frs_lum.groupby(
-                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+                [f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output'])['weighted_ManuFakt'].sum().reset_index()
 
             region_weighted_io = region_weighted_ManuFakt_mean['weighted_ManuFakt'] / region_weight_mean['quantity']
             region_weighted_io = pd.DataFrame(region_weighted_io).rename(columns={0: 'ManuFakt'})
-            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'io']]
+            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output']]
             io_frs_lum = pd.concat([io_info, region_weighted_io], axis=1)
 
         else:
             # Average IOs for sectors in each country
-            io_frs_lum = io_frs_lum.groupby(['RegionCode', 'year', 'io'])['ManuFakt'].mean().reset_index()
+            io_frs_lum = io_frs_lum.groupby(['RegionCode', 'year', 'input', 'output'])['ManuFakt'].mean().reset_index()
 
             # Average IOs for sectors in each regions
             io_frs_lum = io_frs_lum.merge(self.region_key,
                                           left_on='RegionCode',
                                           right_on='GFPM_CountryCode',
                                           how='left')
-            io_frs_lum = io_frs_lum.groupby([f'{self.linked_CGE}_{self.project}', 'io', 'year']).mean().reset_index()
+            io_frs_lum = io_frs_lum.groupby([f'{self.linked_CGE}_{self.project}', 'input', 'output', 'year']).mean().reset_index()
 
         return io_frs_lum
 
@@ -549,17 +551,18 @@ class AggregateTiMBAResults(object):
                              ([x in ['CP', 'MP'] for x in io_data['Output_Comgroup']])].reset_index(drop=True)
         io_frs_ppp = io_frs_ppp[io_frs_ppp['ManuFakt'] != 0].reset_index(drop=True)
         io_frs_ppp['weighted_ManuFakt'] = io_frs_ppp['ManuFakt'] * io_frs_ppp['quantity']
-        io_frs_ppp['io'] = ['io_frs_ppp'] * len(io_frs_ppp)
+        io_frs_ppp['input'] = ['FRS'] * len(io_frs_ppp)
+        io_frs_ppp['output'] = ['PPP'] * len(io_frs_ppp)
 
         if weighted_io:
             # Weighted averages for products to sectors
             sector_weight_mean = io_frs_ppp.groupby(
-                ['RegionCode', 'year', 'io'])['quantity'].sum().reset_index()
+                ['RegionCode', 'year', 'input', 'output'])['quantity'].sum().reset_index()
             sector_weighted_ManuFakt_mean = io_frs_ppp.groupby(
-                ['RegionCode', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+                ['RegionCode', 'year', 'input', 'output'])['weighted_ManuFakt'].sum().reset_index()
             sector_weighted_io = sector_weighted_ManuFakt_mean['weighted_ManuFakt'] / sector_weight_mean['quantity']
             sector_weighted_io = pd.DataFrame(sector_weighted_io).rename(columns={0: 'ManuFakt'})
-            io_info = sector_weight_mean[['RegionCode', 'year', 'io']]
+            io_info = sector_weight_mean[['RegionCode', 'year', 'input', 'output']]
             io_frs_ppp = pd.concat([io_info, sector_weighted_io, sector_weight_mean['quantity']], axis=1)
 
             # Weighted averages for countries to regions
@@ -569,18 +572,18 @@ class AggregateTiMBAResults(object):
                                           how='left')
             io_frs_ppp['weighted_ManuFakt'] = io_frs_ppp['ManuFakt'] * io_frs_ppp['quantity']
             region_weight_mean = io_frs_ppp.groupby(
-                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['quantity'].sum().reset_index()
+                [f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output'])['quantity'].sum().reset_index()
             region_weighted_ManuFakt_mean = io_frs_ppp.groupby(
-                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+                [f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output'])['weighted_ManuFakt'].sum().reset_index()
 
             region_weighted_io = region_weighted_ManuFakt_mean['weighted_ManuFakt'] / region_weight_mean['quantity']
             region_weighted_io = pd.DataFrame(region_weighted_io).rename(columns={0: 'ManuFakt'})
-            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'io']]
+            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output']]
             io_frs_ppp = pd.concat([io_info, region_weighted_io], axis=1)
 
         else:
             # Average IOs for sectors in each country
-            io_frs_ppp = io_frs_ppp.groupby(['RegionCode', 'year', 'io'])['ManuFakt'].mean().reset_index()
+            io_frs_ppp = io_frs_ppp.groupby(['RegionCode', 'year', 'input', 'output'])['ManuFakt'].mean().reset_index()
 
             # Average IOs for sectors in each regions
             io_frs_ppp = io_frs_ppp.merge(self.region_key,
@@ -588,7 +591,7 @@ class AggregateTiMBAResults(object):
                                           right_on='GFPM_CountryCode',
                                           how='left')
 
-            io_frs_ppp = io_frs_ppp.groupby([f'{self.linked_CGE}_{self.project}', 'io', 'year']).mean().reset_index()
+            io_frs_ppp = io_frs_ppp.groupby([f'{self.linked_CGE}_{self.project}', 'input', 'output', 'year']).mean().reset_index()
 
         return io_frs_ppp
 
@@ -606,17 +609,18 @@ class AggregateTiMBAResults(object):
                              (io_data['Output_Comgroup'] == 'TPP')].reset_index(drop=True)
         io_ppp_ppp = io_ppp_ppp[io_ppp_ppp['ManuFakt'] != 0].reset_index(drop=True)
         io_ppp_ppp['weighted_ManuFakt'] = io_ppp_ppp['ManuFakt'] * io_ppp_ppp['quantity']
-        io_ppp_ppp['io'] = ['io_ppp_ppp'] * len(io_ppp_ppp)
+        io_ppp_ppp['input'] = ['PPP'] * len(io_ppp_ppp)
+        io_ppp_ppp['output'] = ['PPP'] * len(io_ppp_ppp)
 
         if weighted_io:
             # Weighted averages for products to sectors
             sector_weight_mean = io_ppp_ppp.groupby(
-                ['RegionCode', 'year', 'io'])['quantity'].sum().reset_index()
+                ['RegionCode', 'year', 'input', 'output'])['quantity'].sum().reset_index()
             sector_weighted_ManuFakt_mean = io_ppp_ppp.groupby(
-                ['RegionCode', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+                ['RegionCode', 'year', 'input', 'output'])['weighted_ManuFakt'].sum().reset_index()
             sector_weighted_io = sector_weighted_ManuFakt_mean['weighted_ManuFakt'] / sector_weight_mean['quantity']
             sector_weighted_io = pd.DataFrame(sector_weighted_io).rename(columns={0: 'ManuFakt'})
-            io_info = sector_weight_mean[['RegionCode', 'year', 'io']]
+            io_info = sector_weight_mean[['RegionCode', 'year', 'input', 'output']]
             io_ppp_ppp = pd.concat([io_info, sector_weighted_io, sector_weight_mean['quantity']], axis=1)
 
             # Weighted averages for countries to regions
@@ -626,18 +630,18 @@ class AggregateTiMBAResults(object):
                                           how='left')
             io_ppp_ppp['weighted_ManuFakt'] = io_ppp_ppp['ManuFakt'] * io_ppp_ppp['quantity']
             region_weight_mean = io_ppp_ppp.groupby(
-                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['quantity'].sum().reset_index()
+                [f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output'])['quantity'].sum().reset_index()
             region_weighted_ManuFakt_mean = io_ppp_ppp.groupby(
-                [f'{self.linked_CGE}_{self.project}', 'year', 'io'])['weighted_ManuFakt'].sum().reset_index()
+                [f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output'])['weighted_ManuFakt'].sum().reset_index()
 
             region_weighted_io = region_weighted_ManuFakt_mean['weighted_ManuFakt'] / region_weight_mean['quantity']
             region_weighted_io = pd.DataFrame(region_weighted_io).rename(columns={0: 'ManuFakt'})
-            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'io']]
+            io_info = region_weight_mean[[f'{self.linked_CGE}_{self.project}', 'year', 'input', 'output']]
             io_ppp_ppp = pd.concat([io_info, region_weighted_io], axis=1)
 
         else:
             # Average IOs for sectors in each country
-            io_ppp_ppp = io_ppp_ppp.groupby(['RegionCode', 'year', 'io'])['ManuFakt'].mean().reset_index()
+            io_ppp_ppp = io_ppp_ppp.groupby(['RegionCode', 'year', 'input', 'output'])['ManuFakt'].mean().reset_index()
 
             # Average IOs for sectors in each regions
             io_ppp_ppp = io_ppp_ppp.merge(self.region_key,
@@ -645,7 +649,7 @@ class AggregateTiMBAResults(object):
                                           right_on='GFPM_CountryCode',
                                           how='left')
 
-            io_ppp_ppp = io_ppp_ppp.groupby([f'{self.linked_CGE}_{self.project}', 'io', 'year']).mean().reset_index()
+            io_ppp_ppp = io_ppp_ppp.groupby([f'{self.linked_CGE}_{self.project}', 'input', 'output', 'year']).mean().reset_index()
 
         return io_ppp_ppp
 
@@ -671,8 +675,8 @@ class AggregateTiMBAResults(object):
         elif ('GTAP-Sector' in target_data.columns) & ('GFPMpt_Comgroup' not in target_data.columns):
             selected_col = [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', f'{col_name}']
 
-        elif 'io' in target_data.columns:
-            selected_col = [f'{self.linked_CGE}_{self.project}', 'io', f'{col_name}']
+        elif ('input' in target_data.columns) & ('output' in target_data.columns):
+            selected_col = [f'{self.linked_CGE}_{self.project}', 'input', 'output', f'{col_name}']
 
         else:
             selected_col = [f'{self.linked_CGE}_{self.project}', f'{col_name}']
@@ -703,8 +707,8 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Calculate growth rate {target_data}.')
         if 'GTAP-Sector' in target_data.columns:
             selected_col = [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', start_year]
-        elif 'io' in target_data.columns:
-            selected_col = [f'{self.linked_CGE}_{self.project}', 'io', start_year]
+        elif ('input' in target_data.columns) & ('output' in target_data.columns):
+            selected_col = [f'{self.linked_CGE}_{self.project}', 'input', 'output', start_year]
         else:
             selected_col = [f'{self.linked_CGE}_{self.project}', start_year]
 
