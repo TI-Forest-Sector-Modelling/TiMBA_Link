@@ -7,6 +7,7 @@
 import datetime as dt
 from linking_pipeline.logic.aggregation_pipeline import AggregateTiMBAResults
 from linking_pipeline.logic.disaggregation_pipeline import DisaggregateCGEResults
+from linking_pipeline.logic.calibration_pipeline import CalibrateTiMBA
 
 class main_linking_pipeline(object):
     def __init__(self,
@@ -18,7 +19,8 @@ class main_linking_pipeline(object):
                  linked_CGE: str,
                  project: str,
                  aggregation_switch: bool,
-                 disaggregation_switch: bool):
+                 disaggregation_switch: bool,
+                 calibration_switch: bool):
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
         self.input_path_timba = input_path_timba
@@ -29,6 +31,7 @@ class main_linking_pipeline(object):
         self.project = project
         self.aggregation_switch = aggregation_switch
         self.disaggregation_switch = disaggregation_switch
+        self.calibration_switch = calibration_switch
 
 
 if __name__ == '__main__':
@@ -45,8 +48,8 @@ if __name__ == '__main__':
                                      project='CarbonLeak',    # Alternatives: 'BioSDG', 'BioSDG_cp', 'CarbonLeak', 'BEPASO'
                                      # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
                                      aggregation_switch=True,  # Note: activates aggregation if True
-                                     disaggregation_switch=False  # Note: activates disaggregation if True
-                                     )
+                                     disaggregation_switch=False,  # Note: activates disaggregation if True
+                                     calibration_switch=False)
 
     if pipeline.aggregation_switch:
         AggregateTiMBAResults.main_aggregation_pipeline(self=pipeline,
@@ -58,5 +61,11 @@ if __name__ == '__main__':
         DisaggregateCGEResults.main_disaggregation_pipeline(self=pipeline,
                                                             updated_file="pkl"  # "xlsx"
                                                             )
+    if pipeline.calibration_switch:
+        CalibrateTiMBA.main_calibration_pipeline(
+            self=pipeline
+        )
+
+
 
 
