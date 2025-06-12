@@ -15,6 +15,7 @@ class main_linking_pipeline(object):
                  input_path_timba: str,
                  input_path_CGE: str,
                  input_world: str,
+                 input_forest: str,
                  link_typ: str,
                  linked_CGE: str,
                  project: str,
@@ -26,6 +27,7 @@ class main_linking_pipeline(object):
         self.input_path_timba = input_path_timba
         self.input_path_CGE = input_path_CGE
         self.input_world = input_world
+        self.input_forest = input_forest
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
@@ -39,6 +41,7 @@ if __name__ == '__main__':
                                      input_path_timba='2025_CarbonLeak_REF_sc_SSP2_30periods',  # For result aggregation
                                      input_path_CGE='dartbio_data_gdpA_i3',   # For result disaggregation
                                      input_world='20240409_BioSDG_World_2011_SSP2_FRA',  # For result disaggregation
+                                     input_forest='20250611_forestland_magnet_REF_iter0',
                                      # Note: Update current_scenario if input_path_timba is changed
                                      link_typ='continous',  # Alternatives: 'continous', 'end_point'
                                      # Note:

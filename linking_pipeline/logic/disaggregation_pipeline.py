@@ -25,6 +25,7 @@ class DisaggregateCGEResults(object):
                  input_path_timba: str,
                  input_path_CGE: str,
                  input_world: str,
+                 input_forest: str,
                  link_typ: str,
                  linked_CGE: str,
                  project: str,
@@ -37,6 +38,7 @@ class DisaggregateCGEResults(object):
         self.input_path_timba = input_path_timba
         self.input_path_CGE = input_path_CGE
         self.input_world = input_world
+        self.input_forest = input_forest
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
@@ -86,10 +88,12 @@ class DisaggregateCGEResults(object):
         cge_data = {}
         if self.linked_CGE == 'DART-BIO':
             # For DART-BIO-TiMBA-linkage GDP and GDPcap projections are disaggregated.
-            self.Logger.info(f'Read in {self.linked_CGE}_{self.project} for GDP.')
+            self.Logger.info(f'Read in {self.input_path_CGE} for GDP.')
             dartbio_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_path_CGE}.csv')
+            if len(dartbio_gdp_data.columns) == 1:
+                dartbio_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_path_CGE}.csv', delimiter=';')
             cge_data['gdp'] = dartbio_gdp_data
-            self.Logger.info(f'Read in {self.linked_CGE}_{self.input_path_CGE} for POP.')
+            self.Logger.info(f'Read in constant POP data.')
             dartbio_pop_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\dartbio_data_pop.xlsx')
             dartbio_pop_data = dartbio_pop_data.parse('pop in million')
             cge_data['pop'] = dartbio_pop_data
@@ -175,8 +179,7 @@ class DisaggregateCGEResults(object):
             self.year_for_avg = years_for_average
 
         if self.linked_CGE == 'MAGNET':
-            cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet.xlsx")
-            cge_forest_data = cge_forest_data.parse('iter_0')
+            cge_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\{self.input_forest}.csv", delimiter=";")
 
             fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
 
@@ -455,6 +458,10 @@ class DisaggregateCGEResults(object):
             period_structure = period_data_cge
         else:
             period_structure = period_data_timba
+
+        cge_max_period = period_data_cge[list(period_data_cge.keys())[-1]]
+        cge_max_period = cge_max_period[0] + cge_max_period[1]
+
         if linkage_type == "continuous":
             for period in period_structure:
 
@@ -483,7 +490,11 @@ class DisaggregateCGEResults(object):
                 period_timba_tmp = period_data_timba[period]
                 period_year_timba = period_timba_tmp[0]
 
-                forest_data_tmp = forest_data.copy()
+                if period_year_timba < cge_max_period:
+                    forest_data_tmp = forest_data.copy()
+                else:
+                    forest_data_tmp = forest_data.copy()
+                    forest_data_tmp["disagg_forestland_change"] = -1  # Endogenous forest area growth rate
                 forest_data_tmp["year"] = period_year_timba
                 forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
 
@@ -668,6 +679,7 @@ class DisaggregateCGEResults(object):
             input_path_timba=self.input_path_timba,
             input_path_CGE=self.input_path_CGE,
             input_world=self.input_world,
+            input_forest=self.input_forest,
             link_typ=self.link_typ,
             linked_CGE=self.linked_CGE,
             project=self.project,
@@ -695,8 +707,8 @@ class DisaggregateCGEResults(object):
 
         elif self.linked_CGE == 'MAGNET':
             Pipeline_Disagg.cge_forest_data = Pipeline_Disagg.process_cge_forest_data(linkage_type=self.link_typ)
-            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=True,
-                                                                                 fra_splitting=True)
+            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=False,
+                                                                                 fra_splitting=False)
             Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest(split_forest_type=False)
             Pipeline_Disagg.align_forest_data(updated_file=updated_file, linkage_type=self.link_typ)
             Pipeline_Disagg.update_world_forest(updated_file=updated_file)
