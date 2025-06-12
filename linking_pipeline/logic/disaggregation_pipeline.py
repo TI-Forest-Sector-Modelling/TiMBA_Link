@@ -25,6 +25,7 @@ class DisaggregateCGEResults(object):
                  input_path_timba: str,
                  input_path_CGE: str,
                  input_world: str,
+                 input_forest: str,
                  link_typ: str,
                  linked_CGE: str,
                  project: str,
@@ -37,6 +38,7 @@ class DisaggregateCGEResults(object):
         self.input_path_timba = input_path_timba
         self.input_path_CGE = input_path_CGE
         self.input_world = input_world
+        self.input_forest = input_forest
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
@@ -74,7 +76,8 @@ class DisaggregateCGEResults(object):
                 timba_data = pickle.load(pkl_file)
 
         if updated_file == "xlsx":
-            timba_input = pd.read_excel(src_path_2)
+            timba_input = pd.ExcelFile(src_path_2)
+            timba_input = timba_input.parse('ExogChange')
         else:
             try:
                 with open(src_path_2, "rb") as pkl_file:
@@ -86,10 +89,12 @@ class DisaggregateCGEResults(object):
         cge_data = {}
         if self.linked_CGE == 'DART-BIO':
             # For DART-BIO-TiMBA-linkage GDP and GDPcap projections are disaggregated.
-            self.Logger.info(f'Read in {self.linked_CGE}_{self.project} for GDP.')
+            self.Logger.info(f'Read in {self.input_path_CGE} for GDP.')
             dartbio_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_path_CGE}.csv')
+            if len(dartbio_gdp_data.columns) == 1:
+                dartbio_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_path_CGE}.csv', delimiter=';')
             cge_data['gdp'] = dartbio_gdp_data
-            self.Logger.info(f'Read in {self.linked_CGE}_{self.input_path_CGE} for POP.')
+            self.Logger.info(f'Read in constant POP data.')
             dartbio_pop_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\dartbio_data_pop.xlsx')
             dartbio_pop_data = dartbio_pop_data.parse('pop in million')
             cge_data['pop'] = dartbio_pop_data
@@ -175,8 +180,7 @@ class DisaggregateCGEResults(object):
             self.year_for_avg = years_for_average
 
         if self.linked_CGE == 'MAGNET':
-            cge_forest_data = pd.ExcelFile(f"{self.sfile}\\data\\input\\forestland_magnet.xlsx")
-            cge_forest_data = cge_forest_data.parse('iter_0')
+            cge_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\{self.input_forest}.csv", delimiter=";")
 
             fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
 
@@ -430,12 +434,10 @@ class DisaggregateCGEResults(object):
         disagg_forest_data = forest_weights.merge(cge_forest_data, left_on=f"{self.linked_CGE}_{self.project}",
                                                   right_on="region", how="left")
         if split_forest_type:
-            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
-                                                              disagg_forest_data["managed_forest_share"] *
+            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["managed_forest_share"] *
                                                               disagg_forest_data["forestland_change"])
         else:
-            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
-                                                              disagg_forest_data["forestland_change"])
+            disagg_forest_data["disagg_forestland_change"] = disagg_forest_data["forestland_change"]
 
         return disagg_forest_data
 
@@ -455,6 +457,10 @@ class DisaggregateCGEResults(object):
             period_structure = period_data_cge
         else:
             period_structure = period_data_timba
+
+        cge_max_period = period_data_cge[list(period_data_cge.keys())[-1]]
+        cge_max_period = cge_max_period[0] + cge_max_period[1]
+
         if linkage_type == "continuous":
             for period in period_structure:
 
@@ -483,7 +489,11 @@ class DisaggregateCGEResults(object):
                 period_timba_tmp = period_data_timba[period]
                 period_year_timba = period_timba_tmp[0]
 
-                forest_data_tmp = forest_data.copy()
+                if period_year_timba < cge_max_period:
+                    forest_data_tmp = forest_data.copy()
+                else:
+                    forest_data_tmp = forest_data.copy()
+                    forest_data_tmp["disagg_forestland_change"] = -1  # Endogenous forest area growth rate
                 forest_data_tmp["year"] = period_year_timba
                 forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
 
@@ -509,23 +519,62 @@ class DisaggregateCGEResults(object):
             self.timba_input["ExogChangeForest"]["data_aligned"] = timba_input_exog_forest_new
 
         else:  # for xlsx scenario input files
-            pass
-            # TODO save process as xlsx-scenario input not implemented
+            exog_change = self.timba_input.copy()
+            filter_col = exog_change.columns[0]
+            slicing_index = exog_change[exog_change[filter_col] == "="].index[1] + 1
+            exog_change_description = exog_change.iloc[:slicing_index]
+            exog_change_data = exog_change.iloc[slicing_index:].reset_index(drop=True)
+            period_index = exog_change_data[exog_change_data[filter_col].str.contains('PERIOD')].index  # [0:4]
+            period_data_length = (period_index[1] - period_index[0]) - 1
+
+            new_exog_change = pd.DataFrame()
+
+            year = self.start_year
+            for index, key in zip(period_index, self.exogenous_change_structure):
+                year = self.exogenous_change_structure[key][0]
+                tmp_exog_change = exog_change_data.loc[index:index + period_data_length]
+                index_forest = tmp_exog_change[tmp_exog_change[filter_col] == 'F'].index
+
+                tmp_forest_data = forest_data_new[forest_data_new["year"] == year].reset_index(drop=True).copy()
+
+                tmp_exog_change.loc[index_forest, "Unnamed: 8"] = tmp_forest_data.set_index(
+                    index_forest)["disagg_forestland_change"]
+
+                new_exog_change = pd.concat([new_exog_change, tmp_exog_change], axis=0)
+
+            new_exog_change = pd.concat([exog_change_description, new_exog_change], axis=0).reset_index(drop=True)
+
+            self.timba_input = new_exog_change
 
     def update_world_forest(self, updated_file):
         """
         Saves updated scenario input file for TiMBA in pkl or xlsx format
         :param updated_file: Selected file format
         """
+        time_stamp = dt.datetime.now().strftime("%Y%m%d")
         if updated_file == "pkl":
             import pickle
             import gzip
-            target_filepath = os.path.join(OUTPUT_PATH, f"updated_{self.input_world}.pkl")
+            target_filepath = os.path.join(OUTPUT_PATH, f"{time_stamp}_updated_{self.input_world}.pkl")
             with gzip.open(target_filepath, "wb") as pkl_file:
                 pickle.dump(self.timba_input, pkl_file)
         else:  # for xlsx scenario input files
-            pass
-            # TODO save process as xlsx-scenario input not implemented
+            shutil.copy2(src=f'{INPUT_PATH}\\{self.input_world}.xlsx',
+                         dst=f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
+
+            wb = load_workbook(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
+            if 'ExogChange' in wb.sheetnames:
+                wb.remove(wb['ExogChange'])
+
+            wb.save(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
+
+            self.Logger.info(f'Save updated worlds')
+
+            with pd.ExcelWriter(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx', engine="openpyxl",
+                                mode="a", if_sheet_exists='replace') as writer:
+
+                self.timba_input.to_excel(writer, sheet_name="ExogChange", index=False)
+
 
     def calc_gdp_per_capita(self):
         """
@@ -668,6 +717,7 @@ class DisaggregateCGEResults(object):
             input_path_timba=self.input_path_timba,
             input_path_CGE=self.input_path_CGE,
             input_world=self.input_world,
+            input_forest=self.input_forest,
             link_typ=self.link_typ,
             linked_CGE=self.linked_CGE,
             project=self.project,
@@ -695,8 +745,8 @@ class DisaggregateCGEResults(object):
 
         elif self.linked_CGE == 'MAGNET':
             Pipeline_Disagg.cge_forest_data = Pipeline_Disagg.process_cge_forest_data(linkage_type=self.link_typ)
-            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=True,
-                                                                                 fra_splitting=True)
+            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=False,
+                                                                                 fra_splitting=False)
             Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest(split_forest_type=False)
             Pipeline_Disagg.align_forest_data(updated_file=updated_file, linkage_type=self.link_typ)
             Pipeline_Disagg.update_world_forest(updated_file=updated_file)
