@@ -76,7 +76,8 @@ class DisaggregateCGEResults(object):
                 timba_data = pickle.load(pkl_file)
 
         if updated_file == "xlsx":
-            timba_input = pd.read_excel(src_path_2)
+            timba_input = pd.ExcelFile(src_path_2)
+            timba_input = timba_input.parse('ExogChange')
         else:
             try:
                 with open(src_path_2, "rb") as pkl_file:
@@ -433,12 +434,10 @@ class DisaggregateCGEResults(object):
         disagg_forest_data = forest_weights.merge(cge_forest_data, left_on=f"{self.linked_CGE}_{self.project}",
                                                   right_on="region", how="left")
         if split_forest_type:
-            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
-                                                              disagg_forest_data["managed_forest_share"] *
+            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["managed_forest_share"] *
                                                               disagg_forest_data["forestland_change"])
         else:
-            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["forest_weights"] *
-                                                              disagg_forest_data["forestland_change"])
+            disagg_forest_data["disagg_forestland_change"] = disagg_forest_data["forestland_change"]
 
         return disagg_forest_data
 
@@ -520,23 +519,62 @@ class DisaggregateCGEResults(object):
             self.timba_input["ExogChangeForest"]["data_aligned"] = timba_input_exog_forest_new
 
         else:  # for xlsx scenario input files
-            pass
-            # TODO save process as xlsx-scenario input not implemented
+            exog_change = self.timba_input.copy()
+            filter_col = exog_change.columns[0]
+            slicing_index = exog_change[exog_change[filter_col] == "="].index[1] + 1
+            exog_change_description = exog_change.iloc[:slicing_index]
+            exog_change_data = exog_change.iloc[slicing_index:].reset_index(drop=True)
+            period_index = exog_change_data[exog_change_data[filter_col].str.contains('PERIOD')].index  # [0:4]
+            period_data_length = (period_index[1] - period_index[0]) - 1
+
+            new_exog_change = pd.DataFrame()
+
+            year = self.start_year
+            for index, key in zip(period_index, self.exogenous_change_structure):
+                year = self.exogenous_change_structure[key][0]
+                tmp_exog_change = exog_change_data.loc[index:index + period_data_length]
+                index_forest = tmp_exog_change[tmp_exog_change[filter_col] == 'F'].index
+
+                tmp_forest_data = forest_data_new[forest_data_new["year"] == year].reset_index(drop=True).copy()
+
+                tmp_exog_change.loc[index_forest, "Unnamed: 8"] = tmp_forest_data.set_index(
+                    index_forest)["disagg_forestland_change"]
+
+                new_exog_change = pd.concat([new_exog_change, tmp_exog_change], axis=0)
+
+            new_exog_change = pd.concat([exog_change_description, new_exog_change], axis=0).reset_index(drop=True)
+
+            self.timba_input = new_exog_change
 
     def update_world_forest(self, updated_file):
         """
         Saves updated scenario input file for TiMBA in pkl or xlsx format
         :param updated_file: Selected file format
         """
+        time_stamp = dt.datetime.now().strftime("%Y%m%d")
         if updated_file == "pkl":
             import pickle
             import gzip
-            target_filepath = os.path.join(OUTPUT_PATH, f"updated_{self.input_world}.pkl")
+            target_filepath = os.path.join(OUTPUT_PATH, f"{time_stamp}_updated_{self.input_world}.pkl")
             with gzip.open(target_filepath, "wb") as pkl_file:
                 pickle.dump(self.timba_input, pkl_file)
         else:  # for xlsx scenario input files
-            pass
-            # TODO save process as xlsx-scenario input not implemented
+            shutil.copy2(src=f'{INPUT_PATH}\\{self.input_world}.xlsx',
+                         dst=f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
+
+            wb = load_workbook(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
+            if 'ExogChange' in wb.sheetnames:
+                wb.remove(wb['ExogChange'])
+
+            wb.save(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
+
+            self.Logger.info(f'Save updated worlds')
+
+            with pd.ExcelWriter(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx', engine="openpyxl",
+                                mode="a", if_sheet_exists='replace') as writer:
+
+                self.timba_input.to_excel(writer, sheet_name="ExogChange", index=False)
+
 
     def calc_gdp_per_capita(self):
         """
