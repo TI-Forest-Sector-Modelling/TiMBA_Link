@@ -729,7 +729,7 @@ class AggregateTiMBAResults(object):
 
         return growth_rate
 
-    def generate_output_file_production(self, readin_header: bool):
+    def generate_output_file_production(self, gams_readin_sheet: bool):
         """
         Generate Excel-Output-file storing all aggregated production related GFPMpt data and calculated growth rates.
         """
@@ -739,7 +739,7 @@ class AggregateTiMBAResults(object):
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
-        if readin_header:
+        if gams_readin_sheet:
             # Generate an index sheet for GAMS (necessary for readin-process of GAMS-based CGE, if GFPMpt is linked with
             # other CGE models, following part can be removed or adapted to the new linked model)
             index_info = {
@@ -747,11 +747,11 @@ class AggregateTiMBAResults(object):
                 1: ['par', 'rel_quantities', 'rel_quantities!A2', 2, 0],
                 2: ['par', 'rel_prices', 'rel_prices!A2', 2, 0],
                 3: ['par', 'rel_values', 'rel_values!A2', 2, 0],
-                4: ['par', 'rel_share_energy_use', 'rel_share_energy_use!A2', 2, 0],
-                5: ['par', 'abs_quantities',  'abs_quantities!A2', 2, 1],
-                6: ['par', 'abs_prices', 'abs_prices!A2', 2, 1],
-                7: ['par', 'abs_values', 'abs_values!A2', 2, 1],
-                8: ['par', 'abs_share_energy_use', 'abs_share_energy_use!A2', 2, 1]
+                4: ['par', 'rel_share_energy_use', 'rel_share_energy_use!A1', 1, 1],
+                5: ['par', 'abs_quantities',  'abs_quantities!A1', 2, 1],
+                6: ['par', 'abs_prices', 'abs_prices!A1', 2, 1],
+                7: ['par', 'abs_values', 'abs_values!A1', 2, 1],
+                8: ['par', 'abs_share_energy_use', 'abs_share_energy_use!A1', 1, 1]
             }
             index_info = pd.DataFrame.from_dict(data=index_info, orient='index').rename(
                 columns={0: 'Type', 1: 'Name', 2: 'Location', 3: 'Row', 4: 'Column'})
@@ -792,7 +792,7 @@ class AggregateTiMBAResults(object):
 
         writer_agg_data.save()
 
-    def generate_output_file_forest(self):
+    def generate_output_file_forest(self, gams_readin_sheet: bool):
         """
         Generate Excel-Output-file storing all aggregated forest related TiMBA data and calculated growth rates.
         """
@@ -802,6 +802,19 @@ class AggregateTiMBAResults(object):
         writer_forest = pd.ExcelWriter(
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
+
+        if gams_readin_sheet:
+            # Generate an index sheet for GAMS (necessary for readin-process of GAMS-based CGE, if GFPMpt is linked with
+            # other CGE models, following part can be removed or adapted to the new linked model)
+            index_info = {
+                '': ['', '', '', 'rdim', 'cdim'],
+                1: ['par', 'rel_forest_area', 'rel_forest_area!A2', 1, 0],
+                2: ['par', 'rel_harvest_intensity', 'rel_harvest_intensity!A2', 1, 0],
+
+            }
+            index_info = pd.DataFrame.from_dict(data=index_info, orient='index').rename(
+                columns={0: 'Type', 1: 'Name', 2: 'Location', 3: 'Row', 4: 'Column'})
+            index_info.to_excel(writer_forest, sheet_name='index', index=False)
 
         # Generate info-sheet
         data_info = {
@@ -833,7 +846,7 @@ class AggregateTiMBAResults(object):
         self.growth_harvest_intensity.to_excel(writer_forest, sheet_name='rel_harvest_intensity', index=False)
         writer_forest.save()
 
-    def generate_output_file_carbon(self):
+    def generate_output_file_carbon(self, gams_readin_sheet: bool):
         """
         Generate Excel-Output-file storing all aggregated carbon related TiMBA data and calculated growth rates.
         """
@@ -842,6 +855,19 @@ class AggregateTiMBAResults(object):
         writer_carbon_data = pd.ExcelWriter(
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
+
+        if gams_readin_sheet:  # TODO gams readin sheet must be adapted!
+            # Generate an index sheet for GAMS (necessary for readin-process of GAMS-based CGE, if GFPMpt is linked with
+            # other CGE models, following part can be removed or adapted to the new linked model)
+            index_info = {
+                '': ['', '', '', 'rdim', 'cdim'],
+                1: ['par', 'rel_carbon_stock_biomass', 'rel_carbon_stock_biomass!A2', 1, 0],
+                2: ['par', 'rel_carbon_stock_hwp', 'rel_carbon_stock_hwp!A2', 1, 0],
+
+            }
+            index_info = pd.DataFrame.from_dict(data=index_info, orient='index').rename(
+                columns={0: 'Type', 1: 'Name', 2: 'Location', 3: 'Row', 4: 'Column'})
+            index_info.to_excel(writer_carbon_data, sheet_name='index', index=False)
 
         # Generate info-sheet
         data_info = {
@@ -865,7 +891,7 @@ class AggregateTiMBAResults(object):
         self.growth_carbon_hwp.to_excel(writer_carbon_data, sheet_name='rel_carbon_stock_hwp', index=False)
         writer_carbon_data.save()
 
-    def generate_output_file_io(self):
+    def generate_output_file_io(self, gams_readin_sheet: bool):
         """
         Generate Excel-Output-file storing all aggregated IO-related TiMBA data and calculated growth rates.
         """
@@ -874,6 +900,18 @@ class AggregateTiMBAResults(object):
         writer_io_data = pd.ExcelWriter(
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
+
+        if gams_readin_sheet:
+            # Generate an index sheet for GAMS (necessary for readin-process of GAMS-based CGE, if GFPMpt is linked with
+            # other CGE models, following part can be removed or adapted to the new linked model)
+            index_info = {
+                '': ['', '', '', 'rdim', 'cdim'],
+                1: ['par', 'rel_io_data', 'rel_io_data!A2', 3, 0],
+
+            }
+            index_info = pd.DataFrame.from_dict(data=index_info, orient='index').rename(
+                columns={0: 'Type', 1: 'Name', 2: 'Location', 3: 'Row', 4: 'Column'})
+            index_info.to_excel(writer_io_data, sheet_name='index', index=False)
 
         # Generate info-sheet
         data_info = {
@@ -946,7 +984,7 @@ class AggregateTiMBAResults(object):
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
 
-            Pipeline_Agg.generate_output_file_production(readin_header=True)
+            Pipeline_Agg.generate_output_file_production(gams_readin_sheet=True)
 
         if 'forest' in domains_to_aggregate:
             Pipeline_Agg.agg_forest_stock, Pipeline_Agg.agg_forest_area = Pipeline_Agg.agg_forest_data()
@@ -988,7 +1026,7 @@ class AggregateTiMBAResults(object):
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
-            Pipeline_Agg.generate_output_file_forest()
+            Pipeline_Agg.generate_output_file_forest(gams_readin_sheet=True)
 
         if 'carbon' in domains_to_aggregate:
             Pipeline_Agg.agg_carbon_biomass, Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.agg_carbon_data()
@@ -1010,7 +1048,7 @@ class AggregateTiMBAResults(object):
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
-            Pipeline_Agg.generate_output_file_carbon()
+            Pipeline_Agg.generate_output_file_carbon(gams_readin_sheet=True)
 
         if 'io' in domains_to_aggregate:
 
@@ -1030,7 +1068,7 @@ class AggregateTiMBAResults(object):
                                                                         end_year=Pipeline_Agg.end_year,
                                                                         link_type=Pipeline_Agg.link_typ)
 
-            Pipeline_Agg.generate_output_file_io()
+            Pipeline_Agg.generate_output_file_io(gams_readin_sheet=True)
 
             # Test calculations of IOs with quantities (Problem: calculations assume unique output group for each input.
             # This is not the case in TiMBA)
