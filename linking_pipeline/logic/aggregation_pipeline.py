@@ -856,7 +856,7 @@ class AggregateTiMBAResults(object):
             f'{self.sfile}\\data\\output\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
-        if gams_readin_sheet:  # TODO gams readin sheet must be adapted!
+        if gams_readin_sheet:
             # Generate an index sheet for GAMS (necessary for readin-process of GAMS-based CGE, if GFPMpt is linked with
             # other CGE models, following part can be removed or adapted to the new linked model)
             index_info = {
