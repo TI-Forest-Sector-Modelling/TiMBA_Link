@@ -771,8 +771,8 @@ class AggregateTiMBAResults(object):
             'rel_prices': [f'Relative changes in projected prices', '[yearly %-changes]'],
             'abs_values': [f'Absolute projected values', '[monetary unit]'],
             'rel_values': [f'Relative changes in projected values', '[yearly %-changes]'],
-            'abs_share_energy': [f'Absolute shares of FRS for energy use', '[%]'],
-            'rel_share_energy': [f'Relative changes in shares of FRS for energy use', '[yearly %-changes]'],
+            'abs_share_energy_use': [f'Absolute shares of FRS for energy use', '[%]'],
+            'rel_share_energy_use': [f'Relative changes in shares of FRS for energy use', '[yearly %-changes]'],
         }
         output_info = pd.DataFrame.from_dict(data=output_info, orient='index').rename(columns={0: 'Metadata',
                                                                                                1: 'Units'})
@@ -787,8 +787,8 @@ class AggregateTiMBAResults(object):
         self.agg_value_data.to_excel(writer_agg_data, sheet_name='abs_values', index=False)
         self.growth_rate_value_data.to_excel(writer_agg_data, sheet_name='rel_values', index=False)
 
-        self.share_energy_use.to_excel(writer_agg_data, sheet_name='abs_share_energy', index=False)
-        self.growth_share_energy_use.to_excel(writer_agg_data, sheet_name='rel_share_energy', index=False)
+        self.share_energy_use.to_excel(writer_agg_data, sheet_name='abs_share_energy_use', index=False)
+        self.growth_share_energy_use.to_excel(writer_agg_data, sheet_name='rel_share_energy_use', index=False)
 
         writer_agg_data.save()
 
