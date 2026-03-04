@@ -593,11 +593,14 @@ class DisaggregateCGEResults(object):
 
         return gdp_per_capita
 
-    def calc_growth_rate(self, target_parameter: pd.DataFrame):
+    def calc_growth_rate(self, target_parameter: pd.DataFrame, link_typ: str):
         """
         Calculate annual growth rate of economic variables (GDP and GDP per capita) projected by linked CGE and
         disaggregated to TiMBA country level
         :param target_parameter: Parameter for which growth rates will be calculated
+        :param link_typ: Type of linkage used in model linkage. If "continous" is chosen, growth rates for each period
+        are calculated for the exchanged variable. If "end_point" is chosen, growth rates between the first and the last
+        period are calculated.
         :return: Calculated growth rate
         """
         self.Logger.info(f'Calculate growth rate for {target_parameter}.')
@@ -605,14 +608,34 @@ class DisaggregateCGEResults(object):
                                         f'{self.linked_CGE}_{self.project}', self.start_year]]
 
         year_period_min = self.start_year
-        for key in self.exogenous_change_structure.keys():
-            year_period_max = year_period_min + self.exogenous_change_structure[key][1]
+        if link_typ == 'continous':
+            for key in self.exogenous_change_structure.keys():
+                year_period_max = year_period_min + self.exogenous_change_structure[key][1]
+                periodic_growth_rate = pd.DataFrame((target_parameter[year_period_max] - target_parameter[year_period_min])
+                                                    / target_parameter[year_period_min]
+                                                    ).rename(columns={0: f"{year_period_max}"})
+                annual_growth_rate = (1 + periodic_growth_rate) ** (1 / self.exogenous_change_structure[key][1]) - 1
+                growth_rate = pd.concat([growth_rate, annual_growth_rate], axis=1)
+                year_period_min = year_period_max
+        if link_typ == 'end_point':
+            proj_length = []
+            year_period_tmp = year_period_min.copy()
+            for key in self.exogenous_change_structure.keys():
+                proj_length.append(self.exogenous_change_structure[key][1])
+                year_period_max = year_period_tmp + self.exogenous_change_structure[key][1]
+                year_period_tmp = year_period_max
+
             periodic_growth_rate = pd.DataFrame((target_parameter[year_period_max] - target_parameter[year_period_min])
                                                 / target_parameter[year_period_min]
                                                 ).rename(columns={0: f"{year_period_max}"})
-            annual_growth_rate = (1 + periodic_growth_rate) ** (1 / self.exogenous_change_structure[key][1]) - 1
-            growth_rate = pd.concat([growth_rate, annual_growth_rate], axis=1)
-            year_period_min = year_period_max
+            annual_growth_rate = (1 + periodic_growth_rate) ** (1 / (year_period_max - year_period_min)) - 1
+
+            for key in self.exogenous_change_structure.keys():
+                year_period_tmp = year_period_min + self.exogenous_change_structure[key][1]
+                annual_growth_rate_tmp = pd.DataFrame(annual_growth_rate).rename(
+                    columns={f"{year_period_max}": f"{year_period_tmp}"})
+                growth_rate = pd.concat([growth_rate, annual_growth_rate_tmp], axis=1)
+                year_period_min = year_period_tmp
 
         return growth_rate
 
@@ -736,9 +759,9 @@ class DisaggregateCGEResults(object):
             Pipeline_Disagg.disagg_gdp_cap = Pipeline_Disagg.calc_gdp_per_capita()
 
             Pipeline_Disagg.growth_rate_gdp = Pipeline_Disagg.calc_growth_rate(
-                target_parameter=Pipeline_Disagg.disagg_gdp)
+                target_parameter=Pipeline_Disagg.disagg_gdp, link_typ=self.link_typ)
             Pipeline_Disagg.growth_rate_gdp_cap = Pipeline_Disagg.calc_growth_rate(
-                target_parameter=Pipeline_Disagg.disagg_gdp_cap)
+                target_parameter=Pipeline_Disagg.disagg_gdp_cap, link_typ=self.link_typ)
 
             Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange()
             Pipeline_Disagg.update_World()
