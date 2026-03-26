@@ -930,10 +930,10 @@ class AggregateTiMBAResults(object):
         self.growth_io_data.to_excel(writer_io_data, sheet_name='rel_io_data', index=False)
         writer_io_data.save()
 
-    def main_aggregation_pipeline(self, domains_to_aggregate: list):
+    def main_aggregation_pipeline(self, input_timba, domains_to_aggregate: list):
         Pipeline_Agg = AggregateTiMBAResults(
             current_scenario=self.current_scenario,
-            input_path_timba=self.input_path_timba,
+            input_path_timba=input_timba,
             link_typ=self.link_typ,  # Alternatives: 'continuous', 'end_point'
             linked_CGE=self.linked_CGE,  # Alternatives: 'DART-BIO', 'MAGNET'
             project=self.project  # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
