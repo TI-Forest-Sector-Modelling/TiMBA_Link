@@ -1,8 +1,3 @@
-# -----------------------------------------------------
-# CGE_linking_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
-# Soft linkage of TiMBA to selected CGE (spatial and sectoral aggregation and disaggregation)
-# Projects: CarbonLeak
-# -----------------------------------------------------
 # imports
 import pandas as pd
 import numpy as np
