@@ -150,7 +150,7 @@ class DisaggregateCGEResults(object):
             oecd_data_collector['pop'] = oecd_pop_data
 
             worldbank_data_collector = {}
-            worldbank_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_data.xlsx')
+            worldbank_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_data_2025.xlsx')
             worldbank_gdp_data = worldbank_data.parse('worldbank_GDP')
             worldbank_gdp_data.columns = worldbank_gdp_data.loc[3]
             worldbank_gdp_data = worldbank_gdp_data.iloc[4:, :].reset_index(drop=True)
