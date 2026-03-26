@@ -23,11 +23,12 @@ class DisaggregateCGEResults(object):
     def __init__(self,
                  current_scenario: str,
                  input_path_timba: str,
-                 input_path_CGE: str,
+                 input_gdp_CGE: str,
                  input_world: str,
-                 input_forest: str,
+                 input_forest_CGE: str,
                  link_typ: str,
                  linked_CGE: str,
+                 linked_var: list,
                  project: str,
                  updated_file: str
                  ):
@@ -36,12 +37,14 @@ class DisaggregateCGEResults(object):
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
         self.input_path_timba = input_path_timba
-        self.input_path_CGE = input_path_CGE
+        self.input_gdp_CGE = input_gdp_CGE
         self.input_world = input_world
-        self.input_forest = input_forest
+        self.input_forest_CGE = input_forest_CGE
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
+        self.linked_var = linked_var
         self.project = project
+        self.updated_file = updated_file
         self.cge_data, self.timba_data, self.timba_input = DisaggregateCGEResults.readin_model_data(self, updated_file)
 
         self.region_key = None
@@ -56,6 +59,17 @@ class DisaggregateCGEResults(object):
         self.start_year = None
         self.end_year = None
         self.year_for_avg = None
+
+        self.worldbank_gdp_weights = None
+        self.worldbank_pop_weights = None
+        self.forest_weights = None
+        self.disagg_forest_data = None
+        self.disagg_gdp_data = None
+        self.disagg_pop_data = None
+        self.disagg_gdp_cap_data = None
+        self.growth_rate_gdp = None
+        self.growth_rate_gdp_cap = None
+        self.new_exogChange = None
 
     def readin_model_data(self, updated_file):
         """
@@ -87,20 +101,34 @@ class DisaggregateCGEResults(object):
                     timba_input = pickle.load(pkl_file)
 
         cge_data = {}
-        if self.linked_CGE == 'DART-BIO':
-            # For DART-BIO-TiMBA-linkage GDP and GDPcap projections are disaggregated.
-            self.Logger.info(f'Read in {self.input_path_CGE} for GDP.')
-            dartbio_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_path_CGE}.csv')
-            if len(dartbio_gdp_data.columns) == 1:
-                dartbio_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_path_CGE}.csv', delimiter=';')
-            cge_data['gdp'] = dartbio_gdp_data
-            self.Logger.info(f'Read in constant POP data.')
-            dartbio_pop_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\dartbio_data_pop.xlsx')
-            dartbio_pop_data = dartbio_pop_data.parse('pop in million')
-            cge_data['pop'] = dartbio_pop_data
+        if ('gdp' in self.linked_var) or ('gdp_cap' in self.linked_var):
+            self.Logger.info(f'Read in {self.input_gdp_CGE} for GDP.')
+            cge_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_gdp_CGE}.csv')
+            if len(cge_gdp_data.columns) == 1:
+                cge_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_gdp_CGE}.csv', delimiter=';')
+            cge_gdp_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, data=cge_gdp_data)
+            cge_gdp_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
+                                                                                     data=cge_gdp_data,
+                                                                                     growth_rate="exponential")
 
-        else:
-            self.Logger.info(f'Disaggregation procedure for other CGE models than DART-BIO are not available yet.')
+            cge_data['gdp'] = cge_gdp_data
+            self.Logger.info(f'Read in constant POP data from {self.linked_CGE}.')
+            if self.linked_CGE == "DART-BIO":
+                cge_pop_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\dartbio_data_pop.xlsx')
+            if self.linked_CGE == "MAGNET":
+                cge_pop_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\magnet_data_pop.xlsx')
+            cge_pop_data = cge_pop_data.parse('pop in million')
+            cge_pop_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, data=cge_pop_data)
+            cge_pop_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
+                                                                                     data=cge_pop_data,
+                                                                                     growth_rate="linear")
+            cge_data['pop'] = cge_pop_data
+
+        if 'forest_area' in self.linked_var:
+            # TODO implement readin for forest data
+            # cge_forest_area_data = pd.read_csv()
+            # cge_data['forest_area'] = cge_forest_area_data
+            pass
 
         return cge_data, timba_data, timba_input
 
@@ -140,7 +168,7 @@ class DisaggregateCGEResults(object):
         region_key_timba = region_key_timba[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
                                              'ISO-Code']]
 
-        if self.linked_CGE == 'DART-BIO':
+        if ('gdp' in self.linked_var) or ('gdp_cap' in self.linked_var):
 
             oecd_data_collector = {}
             oecd_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\oecd_data.xlsx')
@@ -152,8 +180,6 @@ class DisaggregateCGEResults(object):
             worldbank_data_collector = {}
             worldbank_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_data_2025.xlsx')
             worldbank_gdp_data = worldbank_data.parse('worldbank_GDP')
-            worldbank_gdp_data.columns = worldbank_gdp_data.loc[3]
-            worldbank_gdp_data = worldbank_gdp_data.iloc[4:, :].reset_index(drop=True)
             years_for_average = list(range(start_year - 1, start_year + 2))  # 3-years average
             col_selection = ['Country Name', 'Country Code'] + years_for_average
             worldbank_gdp_data = worldbank_gdp_data[col_selection]
@@ -179,8 +205,12 @@ class DisaggregateCGEResults(object):
             self.worldbank_data = worldbank_data_collector
             self.year_for_avg = years_for_average
 
-        if self.linked_CGE == 'MAGNET':
-            cge_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\{self.input_forest}.csv", delimiter=";")
+        if "forest_area" in self.linked_var:
+            cge_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\{self.input_forest_CGE}.csv",
+                                          delimiter=";")
+            if len(cge_forest_data.columns) == 1:
+                cge_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\{self.input_forest_CGE}.csv",
+                                              delimiter=",")
 
             fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
 
@@ -204,6 +234,56 @@ class DisaggregateCGEResults(object):
         self.end_year = end_year
         self.commodity_key = commodity_key
         self.region_key_timba = region_key_timba
+
+    def convert_year_col_to_int(self, data):
+        """
+        Converts year col from str to int
+        :param data: Dataframe with columns to be converted
+        :return: column list with converted column names
+        """
+        data_col = data.columns
+        data_col_new = []
+        for col in data_col:
+            try:
+                new_col = int(col)
+                data_col_new.append(new_col)
+            except ValueError:
+                data_col_new.append(col)
+        return data_col_new
+
+    def interpolate_cge_data_missing_years(self, data, growth_rate):
+        """
+        Interpolates cge data for missing years using either exponential or linear growth rates
+        :param data: CGE data to interpolate
+        :param growth_rate: growth rate used for interpolation (options: exponential or linear growth)
+        :return: interpolated CGE data
+        """
+        year_list = []
+        for col in data.columns:
+            if isinstance(col, int):
+                year_list.append(col)
+        runner = 0
+        for year in year_list[1:]:
+            year_prev = year_list[runner]
+            missing_year_num = list(np.ones((year - year_prev) - 1))
+            missing_year_start = year_prev
+            if growth_rate == "linear":
+                year_diff = (data[year] - data[year_prev]) / (year - year_prev)
+            if growth_rate == "exponential":
+                year_diff = (data[year] / data[year_prev]) ** (1 / (year - year_prev)) - 1
+            if len(missing_year_num) > 0:
+                for missing_year in missing_year_num:
+                    missing_year_start = int(missing_year_start + missing_year)
+                    if growth_rate == "linear":
+                        data[missing_year_start] = data[year_prev] + year_diff
+                    if growth_rate == "exponential":
+                        data[missing_year_start] = data[year_prev] * (1 + year_diff)
+                    year_prev += missing_year
+            runner += 1
+
+        data = pd.concat([data.iloc[:, :1],
+                          data.iloc[:, 1:].sort_index(axis=1)], axis=1)
+        return data
 
     def process_cge_forest_data(self, linkage_type: str):
         """
@@ -391,7 +471,7 @@ class DisaggregateCGEResults(object):
                                                f'{self.linked_CGE}_{self.project}']]
         year_list = list(range(self.start_year, self.end_year + 1))
         for year in year_list:
-            temp_disagg_gdp = pd.DataFrame(disagg_gdp_data[str(year)] * disagg_gdp_data['gdp_weights'] * 1000000000
+            temp_disagg_gdp = pd.DataFrame(disagg_gdp_data[year] * disagg_gdp_data['gdp_weights'] * 1000000000
                                            ).rename(columns={0: year})
             disagg_gdp_data_fin = pd.concat([disagg_gdp_data_fin, temp_disagg_gdp], axis=1)
 
@@ -441,11 +521,10 @@ class DisaggregateCGEResults(object):
 
         return disagg_forest_data
 
-    def align_forest_data(self, updated_file: bool, linkage_type: str):
+    def align_forest_data(self, linkage_type: str):
         """
         Alignes disaggregated forest data with the structure of the exogenous change sheet of pkl or xlsx scenario input
         files
-        :param updated_file: Selected file format.
         :param linkage_type: Defines if the linkage is continuous (= for all periods) or end-point (= for end period).
         """
         forest_data = self.disagg_forest_data
@@ -497,54 +576,7 @@ class DisaggregateCGEResults(object):
                 forest_data_tmp["year"] = period_year_timba
                 forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
 
-        if updated_file == "pkl":
-            timba_input_exog_forest = self.timba_input["ExogChangeForest"]["data_aligned"]
-            timba_input_exog_forest_new = pd.DataFrame()
-            for period in period_data_timba.keys():
-                period_num = int(period.split("_")[1])
-                period_year = period_data_timba[period][0]
-                forest_data_tmp = forest_data_new[
-                    forest_data_new["year"] == period_year].copy().reset_index(drop=True)
-                forest_data_exog = timba_input_exog_forest[
-                    timba_input_exog_forest["Period"] == period_num].copy().reset_index(drop=True)
-                forest_data_aligned = forest_data_exog.merge(forest_data_tmp,
-                                                             left_on="RegionCode",
-                                                             right_on="GFPM_CountryCode",
-                                                             how="left")
-                forest_data_aligned["disagg_forestland_change"] = (
-                    forest_data_aligned["disagg_forestland_change"].fillna(0))
-                forest_data_exog["AreaChange"] = forest_data_aligned["disagg_forestland_change"]
-                timba_input_exog_forest_new = pd.concat([timba_input_exog_forest_new,
-                                                         forest_data_exog], axis=0).reset_index(drop=True)
-            self.timba_input["ExogChangeForest"]["data_aligned"] = timba_input_exog_forest_new
-
-        else:  # for xlsx scenario input files
-            exog_change = self.timba_input.copy()
-            filter_col = exog_change.columns[0]
-            slicing_index = exog_change[exog_change[filter_col] == "="].index[1] + 1
-            exog_change_description = exog_change.iloc[:slicing_index]
-            exog_change_data = exog_change.iloc[slicing_index:].reset_index(drop=True)
-            period_index = exog_change_data[exog_change_data[filter_col].str.contains('PERIOD')].index  # [0:4]
-            period_data_length = (period_index[1] - period_index[0]) - 1
-
-            new_exog_change = pd.DataFrame()
-
-            year = self.start_year
-            for index, key in zip(period_index, self.exogenous_change_structure):
-                year = self.exogenous_change_structure[key][0]
-                tmp_exog_change = exog_change_data.loc[index:index + period_data_length]
-                index_forest = tmp_exog_change[tmp_exog_change[filter_col] == 'F'].index
-
-                tmp_forest_data = forest_data_new[forest_data_new["year"] == year].reset_index(drop=True).copy()
-
-                tmp_exog_change.loc[index_forest, "Unnamed: 8"] = tmp_forest_data.set_index(
-                    index_forest)["disagg_forestland_change"]
-
-                new_exog_change = pd.concat([new_exog_change, tmp_exog_change], axis=0)
-
-            new_exog_change = pd.concat([exog_change_description, new_exog_change], axis=0).reset_index(drop=True)
-
-            self.timba_input = new_exog_change
+        return forest_data_new
 
     def update_world_forest(self, updated_file):
         """
@@ -584,11 +616,11 @@ class DisaggregateCGEResults(object):
         """
         self.Logger.info(f'Calculate GDP per capita using disaggregated data of GDP from '
                          f'{self.linked_CGE}_{self.project} and data of Pop from OECD.')
-        gdp_per_capita = self.disagg_gdp[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
+        gdp_per_capita = self.disagg_gdp_data[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
                                           f'{self.linked_CGE}_{self.project}']]
         year_list = list(range(self.start_year, self.end_year + 1))
         for year in year_list:
-            temp_gdp_per_capita = self.disagg_gdp[year] / self.disagg_pop[year]
+            temp_gdp_per_capita = self.disagg_gdp_data[year] / self.disagg_pop_data[year]
             gdp_per_capita = pd.concat([gdp_per_capita, temp_gdp_per_capita], axis=1)
 
         return gdp_per_capita
@@ -639,14 +671,39 @@ class DisaggregateCGEResults(object):
 
         return growth_rate
 
-    def update_exogChange(self):
+
+    def reformate_growth_rate(self, growth_rate_to_reformate, year):
+        reformated_growth_rate = self.region_key_timba.merge(
+            growth_rate_to_reformate[['GFPM_CountryCode', f'{year}']],
+            left_on='GFPM_CountryCode',
+            right_on='GFPM_CountryCode', how='left')
+        reformated_growth_rate = reformated_growth_rate[['GFPM_CountryCode', f'{year}']].fillna(0)
+        reformated_growth_rate = reformated_growth_rate[
+            reformated_growth_rate['GFPM_CountryCode'] != '--'].reset_index(drop=True)
+
+        return reformated_growth_rate
+
+    def update_exogChange(self, updated_domains, updated_file):
         """
-        Updates exogChange-sheet in specified World-file for TiMBA with:
-        - New annual growth rates for GDP (for demand and supply)
-        - New annual growth rates for GDP per capita (for forest)
-        Updated World input file is saved in Output.
+        Updates exogChange-sheet in specified World-file for TiMBA with data from linked model
+        :param updated_domains: Updated domains with exogen data with following options available:
+            - "gdp": New annual growth rates for GDP (for demand "D" and supply "S")
+            - "gdp_cap": New annual growth rates for GDP per capita (for forest "F")
+            - "forest_area": New growth rates for forest area (for forest "F")
+        :param updated_file: TiMBA input file which will be updated ("xlsx" or "pkl")  # TODO implement pkl
+        Updated exogChange is saved as a pd.DataFrame
         """
         self.Logger.info(f"Update World-file (ExogChange-sheet) with disaggregate Data.")
+        if "gdp" in updated_domains:
+            self.Logger.info(
+                f"Update World-file (ExogChange-sheet) with disaggregate GDP data from {self.linked_CGE}.")
+        if "gdp_cap" in updated_domains:
+            self.Logger.info(
+                f"Update World-file (ExogChange-sheet) with disaggregate GDPpc data from {self.linked_CGE}.")
+        if "forest_area" in updated_domains:
+            self.Logger.info(
+                f"Update World-file (ExogChange-sheet) with disaggregate forest data from {self.linked_CGE}.")
+
         world_to_update = pd.ExcelFile(f'{self.sfile}\\data\\input\\{self.input_world}.xlsx')
         new_ExogChange = world_to_update.parse('ExogChange')
         filter_col = new_ExogChange.columns[0]
@@ -663,44 +720,49 @@ class DisaggregateCGEResults(object):
             period_length = self.exogenous_change_structure[key][1]
             year = year + period_length
             temp_ExogChange = ExogChange_data.loc[index:index + period_data_length]
-            index_demand = temp_ExogChange[temp_ExogChange[filter_col] == 'D'].index
-            index_supply = temp_ExogChange[(temp_ExogChange[filter_col] == 'S') &
-                                           (temp_ExogChange['Unnamed: 9'] != -1)].index
-            index_forest = temp_ExogChange[temp_ExogChange[filter_col] == 'F'].index
 
-            reformated_growth_rate_gdp = self.region_key_timba.merge(
-                self.growth_rate_gdp[['GFPM_CountryCode', f'{year}']],
-                left_on='GFPM_CountryCode',
-                right_on='GFPM_CountryCode', how='left')
-            reformated_growth_rate_gdp = reformated_growth_rate_gdp[['GFPM_CountryCode', f'{year}']].fillna(0)
-            reformated_growth_rate_gdp = reformated_growth_rate_gdp[
-                reformated_growth_rate_gdp['GFPM_CountryCode'] != '--'].reset_index(drop=True)
-            reformated_growth_rate_gdp_demand = temp_ExogChange[
-                temp_ExogChange[filter_col] == 'D'].merge(reformated_growth_rate_gdp,
-                                                          left_on='Unnamed: 1',
-                                                          right_on='GFPM_CountryCode',
-                                                          how='left')
+            exogChange_demand = temp_ExogChange[temp_ExogChange[filter_col] == 'D']
+            exogChange_supply = temp_ExogChange[(temp_ExogChange[filter_col] == 'S') &
+                                                (temp_ExogChange['Unnamed: 9'] != -1)]
+            exogChange_forest = temp_ExogChange[temp_ExogChange[filter_col] == 'F']
 
-            reformated_growth_rate_gdp_supply = temp_ExogChange[
-                (temp_ExogChange[filter_col] == 'S') &
-                (temp_ExogChange['Unnamed: 9'] != -1)].merge(reformated_growth_rate_gdp,
-                                                             left_on='Unnamed: 1',
-                                                             right_on='GFPM_CountryCode',
-                                                             how='left')
+            index_demand = exogChange_demand.index
+            index_supply = exogChange_supply.index
+            index_forest = exogChange_forest.index
 
-            reformated_growth_rate_gdp_cap = self.region_key_timba.merge(
-                self.growth_rate_gdp_cap[['GFPM_CountryCode', f'{year}']], left_on='GFPM_CountryCode',
-                right_on='GFPM_CountryCode', how='left')
-            reformated_growth_rate_gdp_cap = reformated_growth_rate_gdp_cap[['GFPM_CountryCode', f'{year}']].fillna(0)
-            reformated_growth_rate_gdp_cap = reformated_growth_rate_gdp_cap[
-                reformated_growth_rate_gdp_cap['GFPM_CountryCode'] != '--'].reset_index(drop=True)
+            if "gdp" in updated_domains:
+                reformated_growth_rate_gdp = self.reformate_growth_rate(growth_rate_to_reformate=self.growth_rate_gdp,
+                                                                        year=year)
 
-            temp_ExogChange.loc[index_demand, 'Unnamed: 9'] = reformated_growth_rate_gdp_demand.set_index(
-                index_demand)[f'{year}']
-            temp_ExogChange.loc[index_supply, 'Unnamed: 9'] = reformated_growth_rate_gdp_supply.set_index(
-                index_supply)[f'{year}']
-            temp_ExogChange.loc[index_forest, 'Unnamed: 9'] = reformated_growth_rate_gdp_cap.set_index(
-                index_forest)[f'{year}']
+                reformated_growth_rate_gdp_demand = exogChange_demand.merge(reformated_growth_rate_gdp,
+                                                                            left_on='Unnamed: 1',
+                                                                            right_on='GFPM_CountryCode',
+                                                                            how='left')
+
+                reformated_growth_rate_gdp_supply = exogChange_supply.merge(reformated_growth_rate_gdp,
+                                                                            left_on='Unnamed: 1',
+                                                                            right_on='GFPM_CountryCode',
+                                                                            how='left')
+                temp_ExogChange.loc[index_demand, 'Unnamed: 9'] = reformated_growth_rate_gdp_demand.set_index(
+                    index_demand)[f'{year}']
+                temp_ExogChange.loc[index_supply, 'Unnamed: 9'] = reformated_growth_rate_gdp_supply.set_index(
+                    index_supply)[f'{year}']
+
+            if "gdp_cap" in updated_domains:
+                reformated_growth_rate_gdp_cap = self.reformate_growth_rate(
+                    growth_rate_to_reformate=self.growth_rate_gdp_cap,
+                    year=year)
+                temp_ExogChange.loc[index_forest, 'Unnamed: 9'] = reformated_growth_rate_gdp_cap.set_index(
+                    index_forest)[f'{year}']
+
+            if "forest_area" in updated_domains:
+                year_forest = year - period_length
+                # year_forest is a workaround caused by the different calculations of growth for gdp and forest area
+                # Todo Adapt forest_area calculation
+                temp_forest_data = self.disagg_forest_data[
+                    self.disagg_forest_data["year"] == year_forest].reset_index(drop=True).copy()
+                temp_ExogChange.loc[index_forest, "Unnamed: 8"] = temp_forest_data.set_index(
+                    index_forest)["disagg_forestland_change"]
 
             ExoChange_data_updated = pd.concat([ExoChange_data_updated, temp_ExogChange], axis=0)
 
@@ -708,7 +770,7 @@ class DisaggregateCGEResults(object):
 
         return new_ExogChange
 
-    def update_World(self):
+    def update_world(self):
         self.Logger.info(f'Update {self.project} World with new ExogChange')
         output_folder = f'{self.sfile}\\data\\output\\'
         input_folder = f'{self.sfile}\\data\\input\\'
@@ -727,54 +789,84 @@ class DisaggregateCGEResults(object):
         wb.save(f'{output_folder}{updated_world_name}.xlsx')
 
         self.Logger.info(f'Save updated world')
-        options = {'strings_to_formulas': False,
-                   'strings_to_urls': False}
 
         with pd.ExcelWriter(f'{output_folder}{updated_world_name}.xlsx', engine='openpyxl',
                             mode='a', if_sheet_exists='replace') as writer:
             self.new_exogChange.to_excel(writer, sheet_name='ExogChange', index=False)
 
-    def main_disaggregation_pipeline(self, updated_file):
+    def gdp_disaggregation_pipeline(self):
+        """
+        Pipeline disaggregating GDP and Population data from the linked CGE model using country-specific weights based
+        on World Bank data.
+        """
+
+        self.worldbank_gdp_weights = self.calc_worldbank_gdp_weights()
+        self.worldbank_pop_weights = self.calc_worldbank_pop_weights()
+
+        self.disagg_gdp_data = self.disagg_gdp()
+        self.disagg_pop_data = self.disagg_pop()
+
+        self.disagg_gdp_cap_data = self.calc_gdp_per_capita()
+
+        self.growth_rate_gdp = self.calc_growth_rate(
+            target_parameter=self.disagg_gdp_data, link_typ=self.link_typ)
+        self.growth_rate_gdp_cap = self.calc_growth_rate(
+            target_parameter=self.disagg_gdp_cap_data, link_typ=self.link_typ)
+
+    def forest_disaggregation_pipeline(self, split_forest_type, fra_splitting):
+        """
+        Pipeline disaggregating forest data from the linked CGE model using country-specific weights based on FRA
+        :param split_forest_type: Flag controls if forest area type (managed and unmanaged forest) are splitted
+        :param fra_splitting: Flag controls if forest area type is splitted according to FRA method
+        data.
+        """
+        self.cge_forest_data = self.process_cge_forest_data(linkage_type=self.link_typ)
+        self.forest_weights = self.calc_forest_weights(split_forest_type=split_forest_type,
+                                                       fra_splitting=fra_splitting)
+        self.disagg_forest_data = self.disagg_forest(split_forest_type=split_forest_type)
+        self.disagg_forest_data = self.align_forest_data(linkage_type=self.link_typ)
+
+    def main_disaggregation_pipeline(self, input_timba, input_sc_file, input_gdp_CGE, input_forest_CGE, linked_var,
+                                     updated_file):
+        """
+        Main disaggregation pipeline scaling down geographical regions of the linked CGE to TiMBA's spatial resolution
+        using country-specific weights calculated based on world bank data (for GDP and GDP per capita) and forest
+        resource assessment data (for forest area).
+        :param input_timba: TiMBA output file containing modelling results
+        :param input_sc_file: TiMBA input file to be updated with CGE data
+        :param input_gdp_CGE: GDP data of linked CGE
+        :param input_forest_CGE: Forest data of linked CGE
+        :param linked_var: Linked variables from the CGE
+        :param updated_file: File format that is updated
+
+        """
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
-            input_path_timba=self.input_path_timba,
-            input_path_CGE=self.input_path_CGE,
-            input_world=self.input_world,
-            input_forest=self.input_forest,
+            input_path_timba=input_timba,
+            input_gdp_CGE=input_gdp_CGE,
+            input_world=input_sc_file,
+            input_forest_CGE=input_forest_CGE,
             link_typ=self.link_typ,
             linked_CGE=self.linked_CGE,
+            linked_var=linked_var,
             project=self.project,
             updated_file=updated_file
         )
 
         DisaggregateCGEResults.readin_help_data(Pipeline_Disagg)
 
-        if self.linked_CGE == 'DART-BIO':
-            Pipeline_Disagg.worldbank_gdp_weights = Pipeline_Disagg.calc_worldbank_gdp_weights()
-            Pipeline_Disagg.worldbank_pop_weights = Pipeline_Disagg.calc_worldbank_pop_weights()
+        if ('gdp' in linked_var) or ('gdp_cap' in linked_var):
+            Pipeline_Disagg.gdp_disaggregation_pipeline()
 
-            Pipeline_Disagg.disagg_gdp = Pipeline_Disagg.disagg_gdp()
-            Pipeline_Disagg.disagg_pop = Pipeline_Disagg.disagg_pop()
-
-            Pipeline_Disagg.disagg_gdp_cap = Pipeline_Disagg.calc_gdp_per_capita()
-
-            Pipeline_Disagg.growth_rate_gdp = Pipeline_Disagg.calc_growth_rate(
-                target_parameter=Pipeline_Disagg.disagg_gdp, link_typ=self.link_typ)
-            Pipeline_Disagg.growth_rate_gdp_cap = Pipeline_Disagg.calc_growth_rate(
-                target_parameter=Pipeline_Disagg.disagg_gdp_cap, link_typ=self.link_typ)
-
-            Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange()
-            Pipeline_Disagg.update_World()
-
-        elif self.linked_CGE == 'MAGNET':
-            Pipeline_Disagg.cge_forest_data = Pipeline_Disagg.process_cge_forest_data(linkage_type=self.link_typ)
-            Pipeline_Disagg.forest_weights = Pipeline_Disagg.calc_forest_weights(split_forest_type=False,
-                                                                                 fra_splitting=False)
-            Pipeline_Disagg.disagg_forest_data = Pipeline_Disagg.disagg_forest(split_forest_type=False)
-            Pipeline_Disagg.align_forest_data(updated_file=updated_file, linkage_type=self.link_typ)
-            Pipeline_Disagg.update_world_forest(updated_file=updated_file)
+        elif 'forest_area' in linked_var:
+            Pipeline_Disagg.forest_disaggregation_pipeline(split_forest_type=False,
+                                                           fra_splitting=False)
 
         else:
             Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
+
+        Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange(updated_domains=linked_var,
+                                                                           updated_file=updated_file)
+        Pipeline_Disagg.update_world()
 
         Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
