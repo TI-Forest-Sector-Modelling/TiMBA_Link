@@ -6,7 +6,9 @@ import gzip
 import os
 import shutil
 from pathlib import Path
-from linking_pipeline.parameters.paths import (INPUT_PATH, OUTPUT_PATH)
+from linking_pipeline.parameters.paths import (INPUT_PATH, OUTPUT_PATH, INPUT_POP_DART_BIO, INPUT_POP_MAGNET,
+                                               COUNTRY_CONCORDANCE_TIMBA, COUNTRY_CONCORDANCE_WB_OECD,
+                                               INPUT_GDP_WORLD_BANK, INPUT_GDP_OECD, INPUT_FRA)
 from openpyxl import load_workbook
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
@@ -26,7 +28,6 @@ class DisaggregateCGEResults(object):
                  project: str,
                  updated_file: str
                  ):
-        self.sfile = os.path.dirname(Path(__file__).resolve().parents[0])
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
@@ -73,8 +74,8 @@ class DisaggregateCGEResults(object):
         :return: Project and CGE model specific return (see in function for details)
         """
         self.Logger.info(f'Read in TiMBA results {self.input_path_timba}.')
-        src_path_1 = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
-        src_path_2 = f'{self.sfile}\\data\\input\\{self.input_world}.{updated_file}'
+        src_path_1 = f'{INPUT_PATH}\\{self.input_path_timba}.pkl'
+        src_path_2 = f'{INPUT_PATH}\\{self.input_world}.{updated_file}'
 
         try:
             with open(src_path_1, "rb") as pkl_file:
@@ -97,9 +98,9 @@ class DisaggregateCGEResults(object):
         cge_data = {}
         if ('gdp' in self.linked_var) or ('gdp_cap' in self.linked_var):
             self.Logger.info(f'Read in {self.input_gdp_CGE} for GDP.')
-            cge_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_gdp_CGE}.csv')
+            cge_gdp_data = pd.read_csv(f'{INPUT_PATH}\\{self.input_gdp_CGE}.csv')
             if len(cge_gdp_data.columns) == 1:
-                cge_gdp_data = pd.read_csv(f'{self.sfile}\\data\\input\\{self.input_gdp_CGE}.csv', delimiter=';')
+                cge_gdp_data = pd.read_csv(f'{INPUT_PATH}\\{self.input_gdp_CGE}.csv', delimiter=';')
             cge_gdp_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, data=cge_gdp_data)
             cge_gdp_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
                                                                                      data=cge_gdp_data,
@@ -108,9 +109,9 @@ class DisaggregateCGEResults(object):
             cge_data['gdp'] = cge_gdp_data
             self.Logger.info(f'Read in constant POP data from {self.linked_CGE}.')
             if self.linked_CGE == "DART-BIO":
-                cge_pop_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\dartbio_data_pop.xlsx')
+                cge_pop_data = pd.ExcelFile(f'{INPUT_POP_DART_BIO}')
             if self.linked_CGE == "MAGNET":
-                cge_pop_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\magnet_data_pop.xlsx')
+                cge_pop_data = pd.ExcelFile(f'{INPUT_POP_MAGNET}')
             cge_pop_data = cge_pop_data.parse('pop in million')
             cge_pop_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, data=cge_pop_data)
             cge_pop_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
@@ -157,7 +158,7 @@ class DisaggregateCGEResults(object):
             else:
                 commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16.value)
 
-        region_key_timba = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
+        region_key_timba = pd.ExcelFile(f'{COUNTRY_CONCORDANCE_TIMBA}')
         region_key_timba = region_key_timba.parse('m_Country')
         region_key_timba = region_key_timba[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
                                              'ISO-Code']]
@@ -165,14 +166,14 @@ class DisaggregateCGEResults(object):
         if ('gdp' in self.linked_var) or ('gdp_cap' in self.linked_var):
 
             oecd_data_collector = {}
-            oecd_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\oecd_data.xlsx')
+            oecd_data = pd.ExcelFile(f'{INPUT_GDP_OECD}')
             oecd_gdp_data = oecd_data.parse('GDP_OECD')
             oecd_pop_data = oecd_data.parse('Pop_OECD_mio')
             oecd_data_collector['gdp'] = oecd_gdp_data
             oecd_data_collector['pop'] = oecd_pop_data
 
             worldbank_data_collector = {}
-            worldbank_data = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_data_2025.xlsx')
+            worldbank_data = pd.ExcelFile(f'{INPUT_GDP_WORLD_BANK}')
             worldbank_gdp_data = worldbank_data.parse('worldbank_GDP')
             years_for_average = list(range(start_year - 1, start_year + 2))  # 3-years average
             col_selection = ['Country Name', 'Country Code'] + years_for_average
@@ -185,7 +186,7 @@ class DisaggregateCGEResults(object):
             worldbank_data_collector['gdp'] = worldbank_gdp_data
             worldbank_data_collector['pop'] = worldbank_pop_data
 
-            region_oecd_worldbank = pd.ExcelFile(f'{self.sfile}\\data\\input\\worldbank_oecd_countries.xlsx')
+            region_oecd_worldbank = pd.ExcelFile(f'{COUNTRY_CONCORDANCE_WB_OECD}')
             region_oecd_worldbank = region_oecd_worldbank.parse('Country_codes').dropna()
 
             region_key_all = region_key_timba.merge(region_oecd_worldbank, left_on="ISO-Code",
@@ -200,13 +201,13 @@ class DisaggregateCGEResults(object):
             self.year_for_avg = years_for_average
 
         if "forest_area" in self.linked_var:
-            cge_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\{self.input_forest_CGE}.csv",
+            cge_forest_data = pd.read_csv(f"{INPUT_PATH}\\{self.input_forest_CGE}.csv",
                                           delimiter=";")
             if len(cge_forest_data.columns) == 1:
-                cge_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\{self.input_forest_CGE}.csv",
+                cge_forest_data = pd.read_csv(f"{INPUT_PATH}\\{self.input_forest_CGE}.csv",
                                               delimiter=",")
 
-            fra_forest_data = pd.read_csv(f"{self.sfile}\\data\\input\\fra_data.csv")
+            fra_forest_data = pd.read_csv(f"{INPUT_FRA}")
 
             self.cge_forest_data = cge_forest_data
             self.fra_data = fra_forest_data
@@ -698,7 +699,7 @@ class DisaggregateCGEResults(object):
             self.Logger.info(
                 f"Update World-file (ExogChange-sheet) with disaggregate forest data from {self.linked_CGE}.")
 
-        world_to_update = pd.ExcelFile(f'{self.sfile}\\data\\input\\{self.input_world}.xlsx')
+        world_to_update = pd.ExcelFile(f'{INPUT_PATH}\\{self.input_world}.xlsx')
         new_ExogChange = world_to_update.parse('ExogChange')
         filter_col = new_ExogChange.columns[0]
         slicing_index = new_ExogChange[new_ExogChange[filter_col] == "="].index[1] + 1
@@ -766,25 +767,23 @@ class DisaggregateCGEResults(object):
 
     def update_world(self):
         self.Logger.info(f'Update {self.project} World with new ExogChange')
-        output_folder = f'{self.sfile}\\data\\output\\'
-        input_folder = f'{self.sfile}\\data\\input\\'
         time_stamp = dt.datetime.now().strftime("%Y%m%d")
 
         separator = '_'
         updated_world_name = self.input_world.split(separator)[1:]
         updated_world_name = f'{time_stamp}_Updated_{separator.join(updated_world_name)}'
 
-        shutil.copy2(src=f'{input_folder}{self.input_world}.xlsx',
-                     dst=f'{output_folder}{updated_world_name}.xlsx')
+        shutil.copy2(src=f'{INPUT_PATH}\\{self.input_world}.xlsx',
+                     dst=f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
 
-        wb = load_workbook(f'{output_folder}{updated_world_name}.xlsx')
+        wb = load_workbook(f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
         if 'ExogChange' in wb.sheetnames:
             wb.remove(wb['ExogChange'])
-        wb.save(f'{output_folder}{updated_world_name}.xlsx')
+        wb.save(f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
 
         self.Logger.info(f'Save updated world')
 
-        with pd.ExcelWriter(f'{output_folder}{updated_world_name}.xlsx', engine='openpyxl',
+        with pd.ExcelWriter(f'{OUTPUT_PATH}\\{updated_world_name}.xlsx', engine='openpyxl',
                             mode='a', if_sheet_exists='replace') as writer:
             self.new_exogChange.to_excel(writer, sheet_name='ExogChange', index=False)
 
@@ -852,11 +851,11 @@ class DisaggregateCGEResults(object):
         if ('gdp' in linked_var) or ('gdp_cap' in linked_var):
             Pipeline_Disagg.gdp_disaggregation_pipeline()
 
-        elif 'forest_area' in linked_var:
+        if 'forest_area' in linked_var:
             Pipeline_Disagg.forest_disaggregation_pipeline(split_forest_type=False,
                                                            fra_splitting=False)
 
-        else:
+        if ('gdp' not in linked_var) or ('gdp_cap' not in linked_var) or ('forest_area' not in linked_var):
             Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
 
         Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange(updated_domains=linked_var,
