@@ -620,17 +620,18 @@ class DisaggregateCGEResults(object):
 
         return gdp_per_capita
 
-    def calc_growth_rate(self, target_parameter: pd.DataFrame, link_typ: str):
+    def calc_growth_rate(self, parameter_name: str, target_parameter: pd.DataFrame, link_typ: str):
         """
         Calculate annual growth rate of economic variables (GDP and GDP per capita) projected by linked CGE and
         disaggregated to TiMBA country level
+        :param parameter_name: Name of parameter
         :param target_parameter: Parameter for which growth rates will be calculated
         :param link_typ: Type of linkage used in model linkage. If "continous" is chosen, growth rates for each period
         are calculated for the exchanged variable. If "end_point" is chosen, growth rates between the first and the last
         period are calculated.
         :return: Calculated growth rate
         """
-        self.Logger.info(f'Calculate growth rate for {target_parameter}.')
+        self.Logger.info(f'Calculate growth rate for {parameter_name}.')
         growth_rate = target_parameter[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
                                         f'{self.linked_CGE}_{self.project}', self.start_year]]
 
@@ -801,10 +802,12 @@ class DisaggregateCGEResults(object):
 
         self.disagg_gdp_cap_data = self.calc_gdp_per_capita()
 
-        self.growth_rate_gdp = self.calc_growth_rate(
-            target_parameter=self.disagg_gdp_data, link_typ=self.link_typ)
-        self.growth_rate_gdp_cap = self.calc_growth_rate(
-            target_parameter=self.disagg_gdp_cap_data, link_typ=self.link_typ)
+        self.growth_rate_gdp = self.calc_growth_rate(parameter_name="GDG",
+                                                     target_parameter=self.disagg_gdp_data,
+                                                     link_typ=self.link_typ)
+        self.growth_rate_gdp_cap = self.calc_growth_rate(parameter_name="GDPcap",
+                                                         target_parameter=self.disagg_gdp_cap_data,
+                                                         link_typ=self.link_typ)
 
     def forest_disaggregation_pipeline(self, split_forest_type, fra_splitting):
         """
