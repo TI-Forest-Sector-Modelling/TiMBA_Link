@@ -64,6 +64,7 @@ class DisaggregateCGEResults(object):
         self.disagg_gdp_cap_data = None
         self.growth_rate_gdp = None
         self.growth_rate_gdp_cap = None
+        self.growth_rate_forest = None
         self.new_exogChange = None
 
     def readin_model_data(self, updated_file):
@@ -106,24 +107,29 @@ class DisaggregateCGEResults(object):
                                                                                      data=cge_gdp_data,
                                                                                      growth_rate="exponential")
 
-            cge_data['gdp'] = cge_gdp_data
+            cge_data['gdp'] = cge_gdp_data.dropna()
             self.Logger.info(f'Read in constant POP data from {self.linked_CGE}.')
             if self.linked_CGE == "DART-BIO":
-                cge_pop_data = pd.ExcelFile(f'{INPUT_POP_DART_BIO}')
+                pop_data_path = INPUT_POP_DART_BIO
             if self.linked_CGE == "MAGNET":
-                cge_pop_data = pd.ExcelFile(f'{INPUT_POP_MAGNET}')
-            cge_pop_data = cge_pop_data.parse('pop in million')
+                pop_data_path = INPUT_POP_MAGNET
+
+            cge_pop_data = pd.read_csv(f'{pop_data_path}', sep=";")
+            if len(cge_pop_data) == 1:
+                cge_pop_data = pd.read_csv(f'{pop_data_path}', sep=",")
             cge_pop_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, data=cge_pop_data)
             cge_pop_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
                                                                                      data=cge_pop_data,
                                                                                      growth_rate="linear")
-            cge_data['pop'] = cge_pop_data
+            cge_data['pop'] = cge_pop_data.dropna()
 
         if 'forest_area' in self.linked_var:
-            # TODO implement readin for forest data
-            # cge_forest_area_data = pd.read_csv()
-            # cge_data['forest_area'] = cge_forest_area_data
-            pass
+            cge_forest_data = pd.read_csv(f'{INPUT_PATH}\\{self.input_forest_CGE}.csv', delimiter=';')
+            cge_forest_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, cge_forest_data)
+            cge_forest_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
+                                                                                        data=cge_forest_data,
+                                                                                        growth_rate="linear")
+            cge_data['forest_area'] = cge_forest_data.dropna()
 
         return cge_data, timba_data, timba_input
 
@@ -201,30 +207,10 @@ class DisaggregateCGEResults(object):
             self.year_for_avg = years_for_average
 
         if "forest_area" in self.linked_var:
-            cge_forest_data = pd.read_csv(f"{INPUT_PATH}\\{self.input_forest_CGE}.csv",
-                                          delimiter=";")
-            if len(cge_forest_data.columns) == 1:
-                cge_forest_data = pd.read_csv(f"{INPUT_PATH}\\{self.input_forest_CGE}.csv",
-                                              delimiter=",")
-
             fra_forest_data = pd.read_csv(f"{INPUT_FRA}")
-
-            self.cge_forest_data = cge_forest_data
             self.fra_data = fra_forest_data
 
-            exogenous_change_structure_cge = {}
-            period_list = list(cge_forest_data["year"].unique())
-            period_runner = 1
-            year_prev = period_list[0]
-            for year in period_list[1:]:
-                period_len = year - year_prev
-                exogenous_change_structure_cge[f'Period_{period_runner}'] = [year_prev, period_len]
-                period_runner += 1
-                year_prev = year
-
         self.exogenous_change_structure = exogenous_change_structure
-        if self.linked_CGE == 'MAGNET':
-            self.exogenous_change_structure_cge = exogenous_change_structure_cge
         self.start_year = start_year
         self.end_year = end_year
         self.commodity_key = commodity_key
@@ -280,45 +266,6 @@ class DisaggregateCGEResults(object):
                           data.iloc[:, 1:].sort_index(axis=1)], axis=1)
         return data
 
-    def process_cge_forest_data(self, linkage_type: str):
-        """
-        Processes forest data from linked CGE
-        :param linkage_type: Defines if the linkage is continuous (= for all periods) or end-point (= for end period).
-        :return: DataFrame of processed forestland data
-        """
-        cge_forest_data = self.cge_forest_data.copy()
-
-        cge_forest_data_new = pd.DataFrame()
-        if linkage_type == "continuous":
-            start_year_index = 0
-            for end_year in cge_forest_data["year"].unique()[1:]:
-                start_year = cge_forest_data["year"].unique()[start_year_index]
-                forest_data_end = cge_forest_data[cge_forest_data["year"] == end_year].reset_index(drop=True)
-                forest_data_start = cge_forest_data[cge_forest_data["year"] == start_year].reset_index(drop=True)
-
-                forest_data_end["forestland_change"] = (
-                        (forest_data_end["forestland_change"] /
-                         forest_data_start["forestland_change"]) ** (1 / (end_year - start_year)) - 1)
-
-                cge_forest_data_new = pd.concat([cge_forest_data_new,
-                                                 forest_data_end], axis=0).reset_index(drop=True)
-                start_year_index += 1
-
-        if linkage_type == "end_point":
-            end_year = cge_forest_data["year"].max()
-            start_year = cge_forest_data["year"].min()
-
-            forest_data_end = cge_forest_data[cge_forest_data["year"] == end_year].reset_index(drop=True)
-            forest_data_start = cge_forest_data[cge_forest_data["year"] == start_year].reset_index(drop=True)
-
-            forest_data_end["forestland_change"] = (
-                    (forest_data_end["forestland_change"] /
-                     forest_data_start["forestland_change"]) ** (1 / (end_year - start_year)) - 1)
-
-            cge_forest_data_new = forest_data_end
-
-        return cge_forest_data_new
-
     def calc_worldbank_gdp_weights(self):
         """
         Calculates GDP weights based on 3-years average of GDP data from Worldbank to disaggregate CGE data of GDP to
@@ -326,8 +273,8 @@ class DisaggregateCGEResults(object):
         not changing over the projection period.
         :return: GDP weights for each country in each regions of the linked CGE model.
         """
-        self.Logger.info(f'Calculate GDP-weights using Worldbank GDP-data to disaggregate {self.linked_CGE} data'
-                         f' for {self.project}.')
+        self.Logger.info(f'Calculate GDP-weights using Worldbank GDP-data to disaggregate '
+                         f'{self.linked_CGE}_{self.project} data')
 
         worldbank_gdp_data = self.worldbank_data['gdp']
 
@@ -360,8 +307,8 @@ class DisaggregateCGEResults(object):
         countries in each CGE region is not changing over the projection period.
         :return: Population weights for each country in each regions of the linked CGE model.
         """
-        self.Logger.info(f'Calculate popluations weights using Worldbank population data to disaggregate '
-                         f'{self.linked_CGE} data for {self.project}.')
+        self.Logger.info(f'Calculate POP-weights using Worldbank population data to disaggregate '
+                         f'{self.linked_CGE}_{self.project} data')
 
         worldbank_pop_data = self.worldbank_data['pop']
 
@@ -443,10 +390,11 @@ class DisaggregateCGEResults(object):
             forest_weights = pd.concat([iso_nan, iso_no_nan], axis=0).sort_values(by=['GFPM_CountryCode'])
             forest_weights["managed_forest_share"] = 1 - forest_weights["unmanaged_forest_share"]
 
-            forest_weights = forest_weights[["GFPM_CountryCode", cge_region, "forest_weights", "managed_forest_share"]]
+            forest_weights = forest_weights[['ISO-Code', "GFPM_CountryCode", cge_region, "forest_weights",
+                                             "managed_forest_share"]]
 
         else:
-            forest_weights = forest_weights[["GFPM_CountryCode", cge_region, "forest_weights"]]
+            forest_weights = forest_weights[['ISO-Code', "GFPM_CountryCode", cge_region, "forest_weights"]]
 
         return forest_weights
 
@@ -457,7 +405,7 @@ class DisaggregateCGEResults(object):
         period.
         :return: Disaggregated CGE data for GDP
         """
-        self.Logger.info(f'Disaggregate {self.linked_CGE} of GDP using calculated GDP weights for {self.project}.')
+        self.Logger.info(f'Disaggregate GDP from {self.linked_CGE}_{self.project} using calculated GDP weights.')
 
         cge_gdp_data = self.cge_data['gdp']
         disagg_gdp_data = self.worldbank_gdp_weights.merge(cge_gdp_data, left_on=f'{self.linked_CGE}_{self.project}',
@@ -479,7 +427,7 @@ class DisaggregateCGEResults(object):
         projection period.
         :return: Disaggregated CGE data for Population
         """
-        self.Logger.info(f'Disaggregate {self.linked_CGE} of GDP using calculated GDP weights for {self.project}.')
+        self.Logger.info(f'Disaggregate POP from {self.linked_CGE}_{self.project} using calculated POP weights.')
 
         cge_pop_data = self.cge_data['pop']
         disagg_pop_data = self.worldbank_pop_weights.merge(cge_pop_data, left_on=f'{self.linked_CGE}_{self.project}',
@@ -503,105 +451,26 @@ class DisaggregateCGEResults(object):
         :param split_forest_type: Flag controls if forest area type (managed and unmanaged forest) are splitted
         :return: Disaggregated forestland projections
         """
-        cge_forest_data = self.cge_forest_data
+        self.Logger.info(f'Disaggregate FOREST AREA from {self.linked_CGE}_{self.project} using calculated FOREST AREA weights.')
+        cge_forest_data = self.cge_data['forest_area']
         forest_weights = self.forest_weights
 
         disagg_forest_data = forest_weights.merge(cge_forest_data, left_on=f"{self.linked_CGE}_{self.project}",
-                                                  right_on="region", how="left")
-        if split_forest_type:
-            disagg_forest_data["disagg_forestland_change"] = (disagg_forest_data["managed_forest_share"] *
-                                                              disagg_forest_data["forestland_change"])
-        else:
-            disagg_forest_data["disagg_forestland_change"] = disagg_forest_data["forestland_change"]
+                                                  right_on="Region", how="left")
+        disagg_forest_data_fin = disagg_forest_data[['GFPM_CountryCode', f'{self.linked_CGE}_{self.project}']]
+
+        year_list = list(range(self.start_year, self.end_year + 1))
+        for year in year_list:
+            if split_forest_type:
+                temp_disagg_forest = pd.DataFrame(disagg_forest_data[year] * disagg_forest_data['forest_weights'] *
+                                                  disagg_forest_data['managed_forest_share']).rename(columns={0: year})
+            else:
+                temp_disagg_forest = pd.DataFrame(disagg_forest_data[year] * disagg_forest_data['forest_weights']
+                                                  ).rename(columns={0: year})
+
+            disagg_forest_data_fin = pd.concat([disagg_forest_data_fin, temp_disagg_forest], axis=1)
 
         return disagg_forest_data
-
-    def align_forest_data(self, linkage_type: str):
-        """
-        Alignes disaggregated forest data with the structure of the exogenous change sheet of pkl or xlsx scenario input
-        files
-        :param linkage_type: Defines if the linkage is continuous (= for all periods) or end-point (= for end period).
-        """
-        forest_data = self.disagg_forest_data
-        forest_data_new = pd.DataFrame()
-        period_data_timba = self.exogenous_change_structure
-        period_data_cge = self.exogenous_change_structure_cge
-
-        if len(period_data_timba) > len(period_data_cge):  # selects the smallest period structure to align with
-            period_structure = period_data_cge
-        else:
-            period_structure = period_data_timba
-
-        cge_max_period = period_data_cge[list(period_data_cge.keys())[-1]]
-        cge_max_period = cge_max_period[0] + cge_max_period[1]
-
-        if linkage_type == "continuous":
-            for period in period_structure:
-
-                period_timba_tmp = period_data_timba[period]
-                period_cge_tmp = period_data_cge[period]
-
-                period_year_timba = period_timba_tmp[0]
-                period_length_timba = period_timba_tmp[1]
-
-                if period_timba_tmp == period_cge_tmp:
-                    forest_data_tmp = forest_data[forest_data["year"] == period_year_timba + period_length_timba].copy()
-                    forest_data_tmp["year"] = period_year_timba
-                    forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
-                else:
-                    period_year_cge = period_cge_tmp[0]
-                    period_length_cge = period_cge_tmp[1]
-                    forest_data_tmp = forest_data[forest_data["year"] == period_year_cge + period_length_cge].copy()
-                    forest_data_tmp["disagg_forestland_change"] = (forest_data_tmp["disagg_forestland_change"] /
-                                                                   period_length_cge)
-                    for year in range(period_year_cge, period_year_cge + period_length_cge):
-                        forest_data_tmp["year"] = year
-                        forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
-
-        if linkage_type == "end_point":
-            for period in period_data_timba:
-                period_timba_tmp = period_data_timba[period]
-                period_year_timba = period_timba_tmp[0]
-
-                if period_year_timba < cge_max_period:
-                    forest_data_tmp = forest_data.copy()
-                else:
-                    forest_data_tmp = forest_data.copy()
-                    forest_data_tmp["disagg_forestland_change"] = -1  # Endogenous forest area growth rate
-                forest_data_tmp["year"] = period_year_timba
-                forest_data_new = pd.concat([forest_data_new, forest_data_tmp], axis=0).reset_index(drop=True)
-
-        return forest_data_new
-
-    def update_world_forest(self, updated_file):
-        """
-        Saves updated scenario input file for TiMBA in pkl or xlsx format
-        :param updated_file: Selected file format
-        """
-        time_stamp = dt.datetime.now().strftime("%Y%m%d")
-        if updated_file == "pkl":
-            import pickle
-            import gzip
-            target_filepath = os.path.join(OUTPUT_PATH, f"{time_stamp}_updated_{self.input_world}.pkl")
-            with gzip.open(target_filepath, "wb") as pkl_file:
-                pickle.dump(self.timba_input, pkl_file)
-        else:  # for xlsx scenario input files
-            shutil.copy2(src=f'{INPUT_PATH}\\{self.input_world}.xlsx',
-                         dst=f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
-
-            wb = load_workbook(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
-            if 'ExogChange' in wb.sheetnames:
-                wb.remove(wb['ExogChange'])
-
-            wb.save(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx')
-
-            self.Logger.info(f'Save updated worlds')
-
-            with pd.ExcelWriter(f'{OUTPUT_PATH}\\{time_stamp}_updated_{self.input_world}.xlsx', engine="openpyxl",
-                                mode="a", if_sheet_exists='replace') as writer:
-
-                self.timba_input.to_excel(writer, sheet_name="ExogChange", index=False)
-
 
     def calc_gdp_per_capita(self):
         """
@@ -609,10 +478,13 @@ class DisaggregateCGEResults(object):
         changing in the CGE projections).
         :return: Calculated data for GDP per capita
         """
-        self.Logger.info(f'Calculate GDP per capita using disaggregated data of GDP from '
-                         f'{self.linked_CGE}_{self.project} and data of Pop from OECD.')
+        self.Logger.info(f'Calculate GDP per capita using disaggregated data of dynamic GDP and constant POP data from '
+                         f'{self.linked_CGE}_{self.project}.')
         gdp_per_capita = self.disagg_gdp_data[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
                                           f'{self.linked_CGE}_{self.project}']]
+        gpd_data = self.disagg_gdp_data.copy()
+        pop_data = self.disagg_pop_data.copy()
+
         year_list = list(range(self.start_year, self.end_year + 1))
         for year in year_list:
             temp_gdp_per_capita = self.disagg_gdp_data[year] / self.disagg_pop_data[year]
@@ -622,8 +494,8 @@ class DisaggregateCGEResults(object):
 
     def calc_growth_rate(self, parameter_name: str, target_parameter: pd.DataFrame, link_typ: str):
         """
-        Calculate annual growth rate of economic variables (GDP and GDP per capita) projected by linked CGE and
-        disaggregated to TiMBA country level
+        Calculate annual growth rate of economic (GDP and GDP per capita) or land use variables (Forest area) projected
+        by linked CGE and disaggregated to TiMBA country level
         :param parameter_name: Name of parameter
         :param target_parameter: Parameter for which growth rates will be calculated
         :param link_typ: Type of linkage used in model linkage. If "continous" is chosen, growth rates for each period
@@ -631,9 +503,13 @@ class DisaggregateCGEResults(object):
         period are calculated.
         :return: Calculated growth rate
         """
-        self.Logger.info(f'Calculate growth rate for {parameter_name}.')
-        growth_rate = target_parameter[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
-                                        f'{self.linked_CGE}_{self.project}', self.start_year]]
+        self.Logger.info(f'Calculate growth rate for {parameter_name} from {self.linked_CGE}_{self.project}.')
+        if ('GDP' in parameter_name) or ('GDPcap' in parameter_name):
+            growth_rate = target_parameter[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
+                                            f'{self.linked_CGE}_{self.project}', self.start_year]]
+        if 'FOREST_AREA' in parameter_name:
+            growth_rate = target_parameter[['ISO-Code', 'GFPM_CountryCode', f'{self.linked_CGE}_{self.project}',
+                                            self.start_year]]
 
         year_period_min = self.start_year
         if link_typ == 'continous':
@@ -689,16 +565,19 @@ class DisaggregateCGEResults(object):
         :param updated_file: TiMBA input file which will be updated ("xlsx" or "pkl")  # TODO implement pkl
         Updated exogChange is saved as a pd.DataFrame
         """
-        self.Logger.info(f"Update World-file (ExogChange-sheet) with disaggregate Data.")
+        self.Logger.info(f"Update {self.input_world}:")
         if "gdp" in updated_domains:
             self.Logger.info(
-                f"Update World-file (ExogChange-sheet) with disaggregate GDP data from {self.linked_CGE}.")
+                f"  --> Update World-file (ExogChange-sheet) with disaggregate GDP data from"
+                f" {self.linked_CGE}_{self.project}.")
         if "gdp_cap" in updated_domains:
             self.Logger.info(
-                f"Update World-file (ExogChange-sheet) with disaggregate GDPpc data from {self.linked_CGE}.")
+                f"  --> Update World-file (ExogChange-sheet) with disaggregate GDPpc data from"
+                f" {self.linked_CGE}_{self.project}.")
         if "forest_area" in updated_domains:
             self.Logger.info(
-                f"Update World-file (ExogChange-sheet) with disaggregate forest data from {self.linked_CGE}.")
+                f"  --> Update World-file (ExogChange-sheet) with disaggregate forest data from"
+                f" {self.linked_CGE}_{self.project}.")
 
         world_to_update = pd.ExcelFile(f'{INPUT_PATH}\\{self.input_world}.xlsx')
         new_ExogChange = world_to_update.parse('ExogChange')
@@ -752,13 +631,11 @@ class DisaggregateCGEResults(object):
                     index_forest)[f'{year}']
 
             if "forest_area" in updated_domains:
-                year_forest = year - period_length
-                # year_forest is a workaround caused by the different calculations of growth for gdp and forest area
-                # Todo Adapt forest_area calculation
-                temp_forest_data = self.disagg_forest_data[
-                    self.disagg_forest_data["year"] == year_forest].reset_index(drop=True).copy()
-                temp_ExogChange.loc[index_forest, "Unnamed: 8"] = temp_forest_data.set_index(
-                    index_forest)["disagg_forestland_change"]
+                reformated_growth_rate_forest = self.reformate_growth_rate(
+                    growth_rate_to_reformate=self.growth_rate_forest,
+                    year=year)
+                temp_ExogChange.loc[index_forest, 'Unnamed: 8'] = reformated_growth_rate_forest.set_index(
+                    index_forest)[f'{year}']
 
             ExoChange_data_updated = pd.concat([ExoChange_data_updated, temp_ExogChange], axis=0)
 
@@ -802,7 +679,7 @@ class DisaggregateCGEResults(object):
 
         self.disagg_gdp_cap_data = self.calc_gdp_per_capita()
 
-        self.growth_rate_gdp = self.calc_growth_rate(parameter_name="GDG",
+        self.growth_rate_gdp = self.calc_growth_rate(parameter_name="GDP",
                                                      target_parameter=self.disagg_gdp_data,
                                                      link_typ=self.link_typ)
         self.growth_rate_gdp_cap = self.calc_growth_rate(parameter_name="GDPcap",
@@ -816,11 +693,13 @@ class DisaggregateCGEResults(object):
         :param fra_splitting: Flag controls if forest area type is splitted according to FRA method
         data.
         """
-        self.cge_forest_data = self.process_cge_forest_data(linkage_type=self.link_typ)
         self.forest_weights = self.calc_forest_weights(split_forest_type=split_forest_type,
                                                        fra_splitting=fra_splitting)
         self.disagg_forest_data = self.disagg_forest(split_forest_type=split_forest_type)
-        self.disagg_forest_data = self.align_forest_data(linkage_type=self.link_typ)
+
+        self.growth_rate_forest = self.calc_growth_rate(parameter_name="FOREST_AREA",
+                                                        target_parameter=self.disagg_forest_data,
+                                                        link_typ=self.link_typ)
 
     def main_disaggregation_pipeline(self, input_timba, input_sc_file, input_gdp_CGE, input_forest_CGE, linked_var,
                                      updated_file):
