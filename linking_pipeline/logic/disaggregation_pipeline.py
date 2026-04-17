@@ -9,6 +9,7 @@ from pathlib import Path
 from linking_pipeline.parameters.paths import (INPUT_PATH, OUTPUT_PATH, INPUT_POP_DART_BIO, INPUT_POP_MAGNET,
                                                COUNTRY_CONCORDANCE_TIMBA, COUNTRY_CONCORDANCE_WB_OECD,
                                                INPUT_GDP_WORLD_BANK, INPUT_GDP_OECD, INPUT_FRA)
+from linking_pipeline.parameters.REGEX_patterns import PERIOD_PATTERN
 from openpyxl import load_workbook
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
@@ -18,7 +19,6 @@ from linking_pipeline.parameters.defines import Constants, ProductStructures
 class DisaggregateCGEResults(object):
     def __init__(self,
                  current_scenario: str,
-                 input_path_timba: str,
                  input_gdp_CGE: str,
                  input_world: str,
                  input_forest_CGE: str,
@@ -31,7 +31,6 @@ class DisaggregateCGEResults(object):
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
-        self.input_path_timba = input_path_timba
         self.input_gdp_CGE = input_gdp_CGE
         self.input_world = input_world
         self.input_forest_CGE = input_forest_CGE
@@ -40,7 +39,6 @@ class DisaggregateCGEResults(object):
         self.linked_var = linked_var
         self.project = project
         self.updated_file = updated_file
-        self.cge_data, self.timba_data, self.timba_input = DisaggregateCGEResults.readin_model_data(self, updated_file)
 
         self.region_key = None
         self.region_key_timba = None
@@ -50,7 +48,9 @@ class DisaggregateCGEResults(object):
         self.fra_data = None
         self.cge_forest_data = None
         self.exogenous_change_structure = None
-        self.exogenous_change_structure_cge = None
+        self.exogchange_description = None
+        self.exogchange_data = None
+        self.commodity_num = None
         self.start_year = None
         self.end_year = None
         self.year_for_avg = None
@@ -66,6 +66,7 @@ class DisaggregateCGEResults(object):
         self.growth_rate_gdp_cap = None
         self.growth_rate_forest = None
         self.new_exogChange = None
+        self.cge_data = DisaggregateCGEResults.readin_model_data(self, updated_file)
 
     def readin_model_data(self, updated_file):
         """
@@ -74,27 +75,33 @@ class DisaggregateCGEResults(object):
         :param updated_file: File format that has been chosen to be updated
         :return: Project and CGE model specific return (see in function for details)
         """
-        self.Logger.info(f'Read in TiMBA results {self.input_path_timba}.')
-        src_path_1 = f'{INPUT_PATH}\\{self.input_path_timba}.pkl'
-        src_path_2 = f'{INPUT_PATH}\\{self.input_world}.{updated_file}'
-
-        try:
-            with open(src_path_1, "rb") as pkl_file:
-                timba_data = pickle.load(pkl_file)
-        except pickle.UnpicklingError:
-            with gzip.open(src_path_1, "rb") as pkl_file:
-                timba_data = pickle.load(pkl_file)
+        self.Logger.info(f'Read in TiMBA input to update {self.input_world}.')
+        world_to_update_path = f'{INPUT_PATH}\\{self.input_world}.{updated_file}'
 
         if updated_file == "xlsx":
-            timba_input = pd.ExcelFile(src_path_2)
-            timba_input = timba_input.parse('ExogChange')
+            world_to_update = pd.ExcelFile(world_to_update_path)
+            new_ExogChange = world_to_update.parse('ExogChange')
+            Specification_data = world_to_update.parse('Specification')
+            filter_col = new_ExogChange.columns[0]
+            slicing_index = new_ExogChange[new_ExogChange[filter_col] == "="].index[1] + 1
+            ExogChange_description = new_ExogChange.iloc[:slicing_index]
+            ExogChange_data = new_ExogChange.iloc[slicing_index:].reset_index(drop=True)
         else:
+            # TODO not implemented yet
             try:
-                with open(src_path_2, "rb") as pkl_file:
-                    timba_input = pickle.load(pkl_file)
+                with open(world_to_update_path, "rb") as pkl_file:
+                    world_to_update = pickle.load(pkl_file)
             except pickle.UnpicklingError:
-                with gzip.open(src_path_2, "rb") as pkl_file:
-                    timba_input = pickle.load(pkl_file)
+                with gzip.open(world_to_update_path, "rb") as pkl_file:
+                    world_to_update = pickle.load(pkl_file)
+
+        self.start_year = DisaggregateCGEResults.retrieve_start_year(self, data=Specification_data)
+        self.exogenous_change_structure = DisaggregateCGEResults.retrieve_period_structure(self, data=ExogChange_data)
+        self.commodity_num = DisaggregateCGEResults.retrieve_commodity_num(self, data=Specification_data)
+
+        self.exogchange_description = ExogChange_description
+        self.exogchange_data = ExogChange_data
+
 
         cge_data = {}
         if ('gdp' in self.linked_var) or ('gdp_cap' in self.linked_var):
@@ -131,7 +138,7 @@ class DisaggregateCGEResults(object):
                                                                                         growth_rate="linear")
             cge_data['forest_area'] = cge_forest_data.dropna()
 
-        return cge_data, timba_data, timba_input
+        return cge_data
 
     def readin_help_data(self):
         """
@@ -139,26 +146,9 @@ class DisaggregateCGEResults(object):
         :return: Project and CGE model specific return (see in function for details)
         """
         self.Logger.info(f"Read in help data.")
-
-        exogenous_change_data = self.timba_data['data_periods'][
-            ['Period', 'year']].drop_duplicates().reset_index(drop=True)
-        start_year = exogenous_change_data['year'][0]
-        end_year = exogenous_change_data['year'][max(exogenous_change_data.index)]
-
-        exogenous_change_structure = {}
-        year_prev = exogenous_change_data['year'][0]
-        for period in exogenous_change_data['Period'][1:]:
-            index = exogenous_change_data[exogenous_change_data['Period'] == period]['year'].index[0]
-            year = exogenous_change_data[exogenous_change_data['Period'] == period]['year'][index]
-            period_len = year - year_prev
-            exogenous_change_structure[f'Period_{period}'] = [year_prev, period_len]
-            year_prev = year
-
-        timba_commodities = self.timba_data['data_periods']['CommodityCode'].unique()
-
-        if len(timba_commodities) == 14:
+        if self.commodity_num == 14:
             commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_14.value)
-        if len(timba_commodities) == 16:
+        if self.commodity_num == 16:
             if self.project == 'BioSDG':
                 commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16_biosdg.value)
             else:
@@ -181,7 +171,7 @@ class DisaggregateCGEResults(object):
             worldbank_data_collector = {}
             worldbank_data = pd.ExcelFile(f'{INPUT_GDP_WORLD_BANK}')
             worldbank_gdp_data = worldbank_data.parse('worldbank_GDP')
-            years_for_average = list(range(start_year - 1, start_year + 2))  # 3-years average
+            years_for_average = list(range(self.start_year - 1, self.start_year + 2))  # 3-years average
             col_selection = ['Country Name', 'Country Code'] + years_for_average
             worldbank_gdp_data = worldbank_gdp_data[col_selection]
             worldbank_gdp_data = worldbank_gdp_data.dropna()
@@ -196,8 +186,8 @@ class DisaggregateCGEResults(object):
             region_oecd_worldbank = region_oecd_worldbank.parse('Country_codes').dropna()
 
             region_key_all = region_key_timba.merge(region_oecd_worldbank, left_on="ISO-Code",
-                                                   right_on="Worldbank_Ccodes", how="left"
-                                                   ).dropna().reset_index(drop=True)
+                                                    right_on="Worldbank_Ccodes", how="left"
+                                                    ).dropna().reset_index(drop=True)
             region_key_all = region_key_all[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}',
                                              'ISO-Code', 'OECD_Ccodes']]
 
@@ -210,11 +200,60 @@ class DisaggregateCGEResults(object):
             fra_forest_data = pd.read_csv(f"{INPUT_FRA}")
             self.fra_data = fra_forest_data
 
-        self.exogenous_change_structure = exogenous_change_structure
-        self.start_year = start_year
-        self.end_year = end_year
         self.commodity_key = commodity_key
         self.region_key_timba = region_key_timba
+
+    def retrieve_period_structure(self, data):
+        """
+        Retrieves Period Nr and Year from ExogChange and adds to ExogChange.
+        :param data:  DataContainer to be filled with data from Excel
+        """
+        start_year = self.start_year
+        data_period = pd.DataFrame()
+        data_period.loc[0, 'Period'] = int(0)
+        data_period.loc[0, 'year'] =  int(start_year)
+        regex_res = data.iloc[:, 0].apply(
+            lambda x: PERIOD_PATTERN.findall(x)[0] if PERIOD_PATTERN.findall(x) else None).dropna()
+        year_runner = start_year
+        for i, (idx, (period, forcast_years)) in enumerate(regex_res.items()):
+            i += 1
+            year_runner += int(forcast_years)
+            data_period.loc[i, 'Period'] = int(period)
+            data_period.loc[i, 'year'] = year_runner
+
+        self.end_year = int(data_period['year'][max(data_period.index)])
+
+        exogenous_change_structure = {}
+        year_prev = data_period['year'][0]
+        for period in data_period['Period'][1:]:
+            index = data_period[data_period['Period'] == period]['year'].index[0]
+            year = data_period[data_period['Period'] == period]['year'][index]
+            period_len = year - year_prev
+            exogenous_change_structure[f'Period_{period}'] = [year_prev, period_len]
+            year_prev = year
+
+        return exogenous_change_structure
+
+    def retrieve_start_year(self, data):
+        """
+        Retrieves the start year for TiMBA projections from input data
+        :param data: Specification data from TiMBA
+        :return: Start year for TiMBA projections
+        """
+        start_year = int(data["Property Value"][0])
+
+        return start_year
+
+    def retrieve_commodity_num(self, data):
+        """
+        Retrieves the number of commodities used in the TiMBA projections from input data
+        :param data: Specification data from TiMBA
+        :return: Number of commodities used in the TiMBA projections
+        """
+        commodity_num = len(data["Commodity Code"].dropna())
+
+        return commodity_num
+
 
     def convert_year_col_to_int(self, data):
         """
@@ -481,7 +520,7 @@ class DisaggregateCGEResults(object):
         self.Logger.info(f'Calculate GDP per capita using disaggregated data of dynamic GDP and constant POP data from '
                          f'{self.linked_CGE}_{self.project}.')
         gdp_per_capita = self.disagg_gdp_data[['Country Name', 'ISO-Code', 'GFPM_CountryCode', 'OECD_Ccodes',
-                                          f'{self.linked_CGE}_{self.project}']]
+                                               f'{self.linked_CGE}_{self.project}']]
         gpd_data = self.disagg_gdp_data.copy()
         pop_data = self.disagg_pop_data.copy()
 
@@ -523,7 +562,7 @@ class DisaggregateCGEResults(object):
                 year_period_min = year_period_max
         if link_typ == 'end_point':
             proj_length = []
-            year_period_tmp = year_period_min.copy()
+            year_period_tmp = year_period_min
             for key in self.exogenous_change_structure.keys():
                 proj_length.append(self.exogenous_change_structure[key][1])
                 year_period_max = year_period_tmp + self.exogenous_change_structure[key][1]
@@ -579,12 +618,9 @@ class DisaggregateCGEResults(object):
                 f"  --> Update World-file (ExogChange-sheet) with disaggregate forest data from"
                 f" {self.linked_CGE}_{self.project}.")
 
-        world_to_update = pd.ExcelFile(f'{INPUT_PATH}\\{self.input_world}.xlsx')
-        new_ExogChange = world_to_update.parse('ExogChange')
-        filter_col = new_ExogChange.columns[0]
-        slicing_index = new_ExogChange[new_ExogChange[filter_col] == "="].index[1] + 1
-        ExogChange_description = new_ExogChange.iloc[:slicing_index]
-        ExogChange_data = new_ExogChange.iloc[slicing_index:].reset_index(drop=True)
+        ExogChange_description = self.exogchange_description
+        filter_col = ExogChange_description.columns[0]
+        ExogChange_data = self.exogchange_data
         period_index = ExogChange_data[ExogChange_data[filter_col].str.contains('PERIOD')].index  # [0:4]
         period_data_length = (period_index[1] - period_index[0]) - 1
 
@@ -701,14 +737,12 @@ class DisaggregateCGEResults(object):
                                                         target_parameter=self.disagg_forest_data,
                                                         link_typ=self.link_typ)
 
-    def main_disaggregation_pipeline(self, input_timba, input_sc_file, input_gdp_CGE, input_forest_CGE, linked_var,
-                                     updated_file):
+    def main_disaggregation_pipeline(self, input_timba_to_update, input_gdp_CGE, input_forest_CGE, linked_var, updated_file):
         """
         Main disaggregation pipeline scaling down geographical regions of the linked CGE to TiMBA's spatial resolution
         using country-specific weights calculated based on world bank data (for GDP and GDP per capita) and forest
         resource assessment data (for forest area).
-        :param input_timba: TiMBA output file containing modelling results
-        :param input_sc_file: TiMBA input file to be updated with CGE data
+        :param input_timba_to_update: TiMBA input file to be updated with CGE data
         :param input_gdp_CGE: GDP data of linked CGE
         :param input_forest_CGE: Forest data of linked CGE
         :param linked_var: Linked variables from the CGE
@@ -717,9 +751,8 @@ class DisaggregateCGEResults(object):
         """
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
-            input_path_timba=input_timba,
             input_gdp_CGE=input_gdp_CGE,
-            input_world=input_sc_file,
+            input_world=input_timba_to_update,
             input_forest_CGE=input_forest_CGE,
             link_typ=self.link_typ,
             linked_CGE=self.linked_CGE,
