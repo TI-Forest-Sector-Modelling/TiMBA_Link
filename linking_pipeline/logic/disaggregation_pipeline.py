@@ -6,8 +6,8 @@ import gzip
 import os
 import shutil
 from pathlib import Path
-from linking_pipeline.parameters.paths import (INPUT_PATH, OUTPUT_PATH, INPUT_POP_DART_BIO, INPUT_POP_MAGNET,
-                                               COUNTRY_CONCORDANCE_TIMBA, COUNTRY_CONCORDANCE_WB_OECD,
+from linking_pipeline.parameters.paths import (CGE_INPUT_PATH, TIMBA_INPUT_PATH, OUTPUT_PATH, INPUT_POP_DART_BIO,
+                                               INPUT_POP_MAGNET, COUNTRY_CONCORDANCE_TIMBA, COUNTRY_CONCORDANCE_WB_OECD,
                                                INPUT_GDP_WORLD_BANK, INPUT_GDP_OECD, INPUT_FRA)
 from linking_pipeline.parameters.REGEX_patterns import PERIOD_PATTERN
 from openpyxl import load_workbook
@@ -76,7 +76,7 @@ class DisaggregateCGEResults(object):
         :return: Project and CGE model specific return (see in function for details)
         """
         self.Logger.info(f'Read in TiMBA input to update {self.input_world}.')
-        world_to_update_path = f'{INPUT_PATH}\\{self.input_world}.{updated_file}'
+        world_to_update_path = f'{TIMBA_INPUT_PATH}\\{self.input_world}.{updated_file}'
 
         if updated_file == "xlsx":
             world_to_update = pd.ExcelFile(world_to_update_path)
@@ -106,9 +106,9 @@ class DisaggregateCGEResults(object):
         cge_data = {}
         if ('gdp' in self.linked_var) or ('gdp_cap' in self.linked_var):
             self.Logger.info(f'Read in {self.input_gdp_CGE} for GDP.')
-            cge_gdp_data = pd.read_csv(f'{INPUT_PATH}\\{self.input_gdp_CGE}.csv')
+            cge_gdp_data = pd.read_csv(f'{CGE_INPUT_PATH}\\{self.input_gdp_CGE}.csv')
             if len(cge_gdp_data.columns) == 1:
-                cge_gdp_data = pd.read_csv(f'{INPUT_PATH}\\{self.input_gdp_CGE}.csv', delimiter=';')
+                cge_gdp_data = pd.read_csv(f'{CGE_INPUT_PATH}\\{self.input_gdp_CGE}.csv', delimiter=';')
             cge_gdp_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, data=cge_gdp_data)
             cge_gdp_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
                                                                                      data=cge_gdp_data,
@@ -131,7 +131,7 @@ class DisaggregateCGEResults(object):
             cge_data['pop'] = cge_pop_data.dropna()
 
         if 'forest_area' in self.linked_var:
-            cge_forest_data = pd.read_csv(f'{INPUT_PATH}\\{self.input_forest_CGE}.csv', delimiter=';')
+            cge_forest_data = pd.read_csv(f'{CGE_INPUT_PATH}\\{self.input_forest_CGE}.csv', delimiter=';')
             cge_forest_data.columns = DisaggregateCGEResults.convert_year_col_to_int(self, cge_forest_data)
             cge_forest_data = DisaggregateCGEResults.interpolate_cge_data_missing_years(self,
                                                                                         data=cge_forest_data,
@@ -687,7 +687,7 @@ class DisaggregateCGEResults(object):
         updated_world_name = self.input_world.split(separator)[1:]
         updated_world_name = f'{time_stamp}_Updated_{separator.join(updated_world_name)}'
 
-        shutil.copy2(src=f'{INPUT_PATH}\\{self.input_world}.xlsx',
+        shutil.copy2(src=f'{TIMBA_INPUT_PATH}\\{self.input_world}.xlsx',
                      dst=f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
 
         wb = load_workbook(f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
