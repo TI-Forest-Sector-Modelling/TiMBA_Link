@@ -8,6 +8,7 @@ from pathlib import Path
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures
+from linking_pipeline.parameters.paths import (TIMBA_INPUT_PATH, OUTPUT_PATH, COUNTRY_CONCORDANCE_TIMBA)
 
 
 class AggregateTiMBAResults(object):
@@ -18,7 +19,6 @@ class AggregateTiMBAResults(object):
                  linked_CGE: str,
                  project: str
                  ):
-        self.sfile = os.path.dirname(Path(__file__).resolve().parents[0])
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
@@ -36,7 +36,7 @@ class AggregateTiMBAResults(object):
         :return pd.DataFrame: TiMBA data
         """
         self.Logger.info(f"Read in TiMBA results {self.input_path_timba}.")
-        src_path = f'{self.sfile}\\data\\input\\{self.input_path_timba}.pkl'
+        src_path = f'{TIMBA_INPUT_PATH}\\{self.input_path_timba}.pkl'
 
         try:
             with open(src_path, "rb") as pkl_file:
@@ -65,7 +65,7 @@ class AggregateTiMBAResults(object):
             else:
                 commodity_key = pd.DataFrame.from_dict(ProductStructures.com_info_16.value)
 
-        region_key = pd.ExcelFile(f'{self.sfile}\\data\\input\\m_Country.xlsx')
+        region_key = pd.ExcelFile(f'{COUNTRY_CONCORDANCE_TIMBA}')
         region_key = region_key.parse('m_Country')
         region_key = region_key[['GFPM_CountryCode', 'GTAP10', f'{self.linked_CGE}_{self.project}']]
 
@@ -654,7 +654,7 @@ class AggregateTiMBAResults(object):
 
         return io_data_merged
 
-    def reformate_gfpmpt_data(self, target_data: pd.DataFrame, col_name: str, start_year: int):
+    def reformate_timba_data(self, target_data: pd.DataFrame, col_name: str, start_year: int):
         """
         Reformate TiMBA data to save aggregated data for each considered year in a separate column.
         :param target_data: Data which will be reformated
@@ -730,7 +730,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated production related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
-            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
+            f'{OUTPUT_PATH}\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -794,7 +794,7 @@ class AggregateTiMBAResults(object):
 
         # Excel-Writer
         writer_forest = pd.ExcelWriter(
-            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
+            f'{OUTPUT_PATH}\\{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -847,7 +847,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated carbon related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_carbon_data = pd.ExcelWriter(
-            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
+            f'{OUTPUT_PATH}\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -892,7 +892,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated io related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_io_data = pd.ExcelWriter(
-            f'{self.sfile}\\data\\output\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
+            f'{OUTPUT_PATH}\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -941,19 +941,19 @@ class AggregateTiMBAResults(object):
             Pipeline_Agg.agg_value_data = Pipeline_Agg.agg_value_data()
             Pipeline_Agg.share_energy_use = Pipeline_Agg.share_energy_material_use()
 
-            Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_production_data = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_production_data,
                 col_name='quantity',
                 start_year=Pipeline_Agg.start_year)
-            Pipeline_Agg.agg_price_data = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_price_data = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_price_data,
                 col_name='price',
                 start_year=Pipeline_Agg.start_year)
-            Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_value_data = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_value_data,
                 col_name='value',
                 start_year=Pipeline_Agg.start_year)
-            Pipeline_Agg.share_energy_use = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.share_energy_use = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.share_energy_use,
                 col_name='share_energy_use',
                 start_year=Pipeline_Agg.start_year)
@@ -984,19 +984,19 @@ class AggregateTiMBAResults(object):
             Pipeline_Agg.agg_forest_stock, Pipeline_Agg.agg_forest_area = Pipeline_Agg.agg_forest_data()
             Pipeline_Agg.agg_harvest_data = Pipeline_Agg.agg_harvest_data()
             Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.calc_harvest_intensity()
-            Pipeline_Agg.agg_forest_stock = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_forest_stock = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_forest_stock,
                 col_name='ForStock',
                 start_year=Pipeline_Agg.start_year)
-            Pipeline_Agg.agg_forest_area = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_forest_area = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_forest_area,
                 col_name='ForArea',
                 start_year=Pipeline_Agg.start_year)
-            Pipeline_Agg.agg_harvest_data = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_harvest_data = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_harvest_data,
                 col_name='quantity',
                 start_year=Pipeline_Agg.start_year)
-            Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_harvest_intensity,
                 col_name='harvest_intensity',
                 start_year=Pipeline_Agg.start_year)
@@ -1024,11 +1024,11 @@ class AggregateTiMBAResults(object):
 
         if 'carbon' in domains_to_aggregate:
             Pipeline_Agg.agg_carbon_biomass, Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.agg_carbon_data()
-            Pipeline_Agg.agg_carbon_biomass = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_carbon_biomass = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_carbon_biomass,
                 col_name='CarbonStockBiomass [MtCO2]',
                 start_year=Pipeline_Agg.start_year)
-            Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_carbon_hwp,
                 col_name='CarbonStockHWP [MtCO2]',
                 start_year=Pipeline_Agg.start_year)
@@ -1052,7 +1052,7 @@ class AggregateTiMBAResults(object):
             Pipeline_Agg.io_data_ppp_ppp = Pipeline_Agg.calc_io_ppp_ppp(weighted_io=True)
             Pipeline_Agg.io_data_agg = Pipeline_Agg.merge_io_data()
 
-            Pipeline_Agg.io_data_agg = Pipeline_Agg.reformate_gfpmpt_data(
+            Pipeline_Agg.io_data_agg = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.io_data_agg,
                 col_name='ManuFakt',
                 start_year=Pipeline_Agg.start_year)
