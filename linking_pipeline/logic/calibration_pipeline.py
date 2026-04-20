@@ -1,8 +1,3 @@
-# -----------------------------------------------------
-# CGE_linking_pipeline (Tomke Honkomp (TH) - Thuenen-Institut)
-# Soft linkage of TiMBA to selected CGE (spatial and sectoral aggregation and disaggregation)
-# Projects: CarbonLeak
-# -----------------------------------------------------
 # imports
 import pandas as pd
 import numpy as np
@@ -201,7 +196,7 @@ class CalibrateTiMBA(object):
         calibration_data = self.calibration_data
         calibration_data.to_csv(f"{self.sfile}\\data\\output\\magnet_calibration_data.csv", index=False)
 
-    def main_calibration_pipeline(self):
+    def main_calibration_pipeline(self, calibration_parameters):
         Pipeline_Cali = CalibrateTiMBA(
             current_scenario=self.current_scenario,
             input_path_timba=self.input_path_timba,

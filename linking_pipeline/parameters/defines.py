@@ -33,3 +33,26 @@ class ProductStructures(Enum):
                                               "TPP", "TPP", "TPP", "TPP"],
                           "GTAP-Sector": ["FRS", "LUM", "BIOE", "FRS", "FRS", "LUM", "LUM", "LUM", "LUM", "PPP", "PPP",
                                           "PPP", "PPP", "PPP", "PPP", "PPP"]}
+
+class VarNames(Enum):
+    # Project parameters
+    CURRENT_SC = "current_scenario"
+    LINK_TYPE = "link_type"
+    LINKED_CGE = "linked_CGE"
+    PROJECT = "project"
+    ITER_NUM = "iter"
+    AGGREGATION_SWITCH = "aggregation_switch"
+    DISAGGREGATION_SWITCH = "disaggregation_switch"
+    CALIBRATION_SWITCH = "calibration_switch"
+
+    # Aggregation parameters
+    INPUT_TIMBA = "input_timba"
+    DOMAINS_TO_AGGREGATE = "domains_to_aggregate"
+
+    # Disaggregation parameters
+    INPUT_TIMBA_TO_UPDATE = "input_timba_to_update"
+    INPUT_GDP_CGE = "input_gdp_CGE"
+    INPUT_FOREST_CGE = "input_forest_CGE"
+    LINKED_VAR = "linked_var"
+    UPDATED_FILE = "updated_file"
+
