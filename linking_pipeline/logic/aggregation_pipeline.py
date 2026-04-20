@@ -662,7 +662,7 @@ class AggregateTiMBAResults(object):
         :param start_year: Year from which data will be reformated
         :return pd.DataFrame: Reformated target_data
         """
-        self.Logger.info(f'Reformate TiMBA Data to prepare growth rate calculations.')
+        self.Logger.info(f'Reformate {col_name} data from TiMBA to prepare growth rate calculations.')
         if 'GFPMpt_Comgroup' in target_data.columns:
             selected_col = [f'{self.linked_CGE}_{self.project}', 'GFPMpt_Comgroup', 'GTAP-Sector', f'{col_name}']
 
@@ -687,9 +687,10 @@ class AggregateTiMBAResults(object):
 
         return reformated_data
 
-    def calc_growth_rate(self, target_data, start_year: int, end_year: int, link_type: bool):
+    def calc_growth_rate(self, parameter_name: str, target_data, start_year: int, end_year: int, link_type: bool):
         """
         Caluclate growth rate for target_data considering start_year and end_year.
+        :param parameter_name: Name of parameter
         :param target_data: Data for which growth rates will be calculated
         :param start_year: Year from which growth rates will be calculated (for BioSDG-project = 2011)
         :param end_year: Year until which growth rates will be calculated
@@ -698,7 +699,7 @@ class AggregateTiMBAResults(object):
         For the linkage DART-BIO-GFPMpt only the final value (in 2030) is linked. Therefore flag has to be True
         :return pd.DataFrame: Growth rates for target_data with chosen options
         """
-        self.Logger.info(f'Calculate growth rate {target_data}.')
+        self.Logger.info(f'Calculate growth rate for {parameter_name} from {self.linked_CGE}_{self.project}.')
         if 'GTAP-Sector' in target_data.columns:
             selected_col = [f'{self.linked_CGE}_{self.project}', 'GTAP-Sector', start_year]
         elif ('input' in target_data.columns) & ('output' in target_data.columns):
@@ -958,21 +959,25 @@ class AggregateTiMBAResults(object):
                 col_name='share_energy_use',
                 start_year=Pipeline_Agg.start_year)
             Pipeline_Agg.growth_rate_price_data = Pipeline_Agg.calc_growth_rate(
+                parameter_name="price",
                 target_data=Pipeline_Agg.agg_price_data,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_rate_value_data = Pipeline_Agg.calc_growth_rate(
+                parameter_name="value",
                 target_data=Pipeline_Agg.agg_value_data,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_rate_production_data = Pipeline_Agg.calc_growth_rate(
+                parameter_name="production",
                 target_data=Pipeline_Agg.agg_production_data,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_share_energy_use = Pipeline_Agg.calc_growth_rate(
+                parameter_name="share energy_use",
                 target_data=Pipeline_Agg.share_energy_use,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
@@ -1001,21 +1006,25 @@ class AggregateTiMBAResults(object):
                 col_name='harvest_intensity',
                 start_year=Pipeline_Agg.start_year)
             Pipeline_Agg.growth_forest_stock = Pipeline_Agg.calc_growth_rate(
+                parameter_name="forest stock",
                 target_data=Pipeline_Agg.agg_forest_stock,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_forest_area = Pipeline_Agg.calc_growth_rate(
+                parameter_name="forest area",
                 target_data=Pipeline_Agg.agg_forest_area,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_harvest_data = Pipeline_Agg.calc_growth_rate(
+                parameter_name="harvest",
                 target_data=Pipeline_Agg.agg_harvest_data,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_harvest_intensity = Pipeline_Agg.calc_growth_rate(
+                parameter_name="harvest intensity",
                 target_data=Pipeline_Agg.agg_harvest_intensity,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
@@ -1033,11 +1042,13 @@ class AggregateTiMBAResults(object):
                 col_name='CarbonStockHWP [MtCO2]',
                 start_year=Pipeline_Agg.start_year)
             Pipeline_Agg.growth_carbon_biomass = Pipeline_Agg.calc_growth_rate(
+                parameter_name="carbon biomass",
                 target_data=Pipeline_Agg.agg_carbon_biomass,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.growth_carbon_hwp = Pipeline_Agg.calc_growth_rate(
+                parameter_name="carbon HWP",
                 target_data=Pipeline_Agg.agg_carbon_biomass,
                 start_year=Pipeline_Agg.start_year,
                 end_year=Pipeline_Agg.end_year,
@@ -1057,10 +1068,12 @@ class AggregateTiMBAResults(object):
                 col_name='ManuFakt',
                 start_year=Pipeline_Agg.start_year)
 
-            Pipeline_Agg.growth_io_data = Pipeline_Agg.calc_growth_rate(target_data=Pipeline_Agg.io_data_agg,
-                                                                        start_year=Pipeline_Agg.start_year,
-                                                                        end_year=Pipeline_Agg.end_year,
-                                                                        link_type=Pipeline_Agg.link_typ)
+            Pipeline_Agg.growth_io_data = Pipeline_Agg.calc_growth_rate(
+                parameter_name="IO data",
+                target_data=Pipeline_Agg.io_data_agg,
+                start_year=Pipeline_Agg.start_year,
+                end_year=Pipeline_Agg.end_year,
+                link_type=Pipeline_Agg.link_typ)
 
             Pipeline_Agg.generate_output_file_io(gams_readin_sheet=True)
 
