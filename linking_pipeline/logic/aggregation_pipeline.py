@@ -784,8 +784,7 @@ class AggregateTiMBAResults(object):
 
         self.share_energy_use.to_excel(writer_agg_data, sheet_name='abs_share_energy_use', index=False)
         self.growth_share_energy_use.to_excel(writer_agg_data, sheet_name='rel_share_energy_use', index=False)
-
-        writer_agg_data.save()
+        writer_agg_data.close()
 
     def generate_output_file_forest(self, gams_readin_sheet: bool):
         """
@@ -839,7 +838,7 @@ class AggregateTiMBAResults(object):
         self.growth_harvest_data.to_excel(writer_forest, sheet_name='rel_harvest', index=False)
         self.agg_harvest_intensity.to_excel(writer_forest, sheet_name='abs_harvest_intensity', index=False)
         self.growth_harvest_intensity.to_excel(writer_forest, sheet_name='rel_harvest_intensity', index=False)
-        writer_forest.save()
+        writer_forest.close()
 
     def generate_output_file_carbon(self, gams_readin_sheet: bool):
         """
@@ -884,7 +883,7 @@ class AggregateTiMBAResults(object):
         self.growth_carbon_biomass.to_excel(writer_carbon_data, sheet_name='rel_carbon_stock_biomass', index=False)
         self.agg_carbon_hwp.to_excel(writer_carbon_data, sheet_name='abs_carbon_stock_hwp', index=False)
         self.growth_carbon_hwp.to_excel(writer_carbon_data, sheet_name='rel_carbon_stock_hwp', index=False)
-        writer_carbon_data.save()
+        writer_carbon_data.close()
 
     def generate_output_file_io(self, gams_readin_sheet: bool):
         """
@@ -923,7 +922,7 @@ class AggregateTiMBAResults(object):
         data_info.to_excel(writer_io_data, sheet_name='Metadata')
         self.io_data_agg.to_excel(writer_io_data, sheet_name='abs_io_data', index=False)
         self.growth_io_data.to_excel(writer_io_data, sheet_name='rel_io_data', index=False)
-        writer_io_data.save()
+        writer_io_data.close()
 
     def main_aggregation_pipeline(self, aggregation_parameters):
         """
