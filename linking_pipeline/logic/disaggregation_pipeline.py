@@ -6,9 +6,10 @@ import gzip
 import os
 import shutil
 from pathlib import Path
-from linking_pipeline.parameters.paths import (CGE_INPUT_PATH, TIMBA_INPUT_PATH, OUTPUT_PATH, INPUT_POP_DART_BIO,
-                                               INPUT_POP_MAGNET, COUNTRY_CONCORDANCE_TIMBA, COUNTRY_CONCORDANCE_WB_OECD,
-                                               INPUT_GDP_WORLD_BANK, INPUT_GDP_OECD, INPUT_FRA)
+from linking_pipeline.parameters.paths import (CGE_INPUT_PATH, TIMBA_INPUT_PATH, DISAGGREGATION_OUTPUT_PATH,
+                                               INPUT_POP_DART_BIO, INPUT_POP_MAGNET, COUNTRY_CONCORDANCE_TIMBA,
+                                               COUNTRY_CONCORDANCE_WB_OECD, INPUT_GDP_WORLD_BANK, INPUT_GDP_OECD,
+                                               INPUT_FRA)
 from linking_pipeline.parameters.REGEX_patterns import PERIOD_PATTERN
 from openpyxl import load_workbook
 import datetime as dt
@@ -688,16 +689,16 @@ class DisaggregateCGEResults(object):
         updated_world_name = f'{time_stamp}_Updated_{separator.join(updated_world_name)}'
 
         shutil.copy2(src=f'{TIMBA_INPUT_PATH}\\{self.input_world}.xlsx',
-                     dst=f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
+                     dst=f'{DISAGGREGATION_OUTPUT_PATH}\\{updated_world_name}.xlsx')
 
-        wb = load_workbook(f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
+        wb = load_workbook(f'{DISAGGREGATION_OUTPUT_PATH}\\{updated_world_name}.xlsx')
         if 'ExogChange' in wb.sheetnames:
             wb.remove(wb['ExogChange'])
-        wb.save(f'{OUTPUT_PATH}\\{updated_world_name}.xlsx')
+        wb.save(f'{DISAGGREGATION_OUTPUT_PATH}\\{updated_world_name}.xlsx')
 
         self.Logger.info(f'Save updated world')
 
-        with pd.ExcelWriter(f'{OUTPUT_PATH}\\{updated_world_name}.xlsx', engine='openpyxl',
+        with pd.ExcelWriter(f'{DISAGGREGATION_OUTPUT_PATH}\\{updated_world_name}.xlsx', engine='openpyxl',
                             mode='a', if_sheet_exists='replace') as writer:
             self.new_exogChange.to_excel(writer, sheet_name='ExogChange', index=False)
 

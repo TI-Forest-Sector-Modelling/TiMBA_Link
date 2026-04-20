@@ -18,3 +18,7 @@ INPUT_FRA = os.path.join(SUPPORTIVE_INPUT_PATH, "fra_data.csv")
 
 COUNTRY_CONCORDANCE_TIMBA = os.path.join(SUPPORTIVE_INPUT_PATH, "country_concordance.xlsx")
 COUNTRY_CONCORDANCE_WB_OECD = os.path.join(SUPPORTIVE_INPUT_PATH, "worldbank_oecd_countries.xlsx")
+
+# Output data
+AGGREGATION_OUTPUT_PATH = os.path.join(OUTPUT_PATH, "aggregation")
+DISAGGREGATION_OUTPUT_PATH = os.path.join(OUTPUT_PATH, "disaggregation")

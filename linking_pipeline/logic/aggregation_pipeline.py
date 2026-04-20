@@ -8,7 +8,7 @@ from pathlib import Path
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures
-from linking_pipeline.parameters.paths import (TIMBA_INPUT_PATH, OUTPUT_PATH, COUNTRY_CONCORDANCE_TIMBA)
+from linking_pipeline.parameters.paths import (TIMBA_INPUT_PATH, AGGREGATION_OUTPUT_PATH, COUNTRY_CONCORDANCE_TIMBA)
 
 
 class AggregateTiMBAResults(object):
@@ -731,7 +731,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated production related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
-            f'{OUTPUT_PATH}\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
+            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -795,7 +795,7 @@ class AggregateTiMBAResults(object):
 
         # Excel-Writer
         writer_forest = pd.ExcelWriter(
-            f'{OUTPUT_PATH}\\{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
+            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -848,7 +848,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated carbon related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_carbon_data = pd.ExcelWriter(
-            f'{OUTPUT_PATH}\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
+            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -893,7 +893,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated io related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_io_data = pd.ExcelWriter(
-            f'{OUTPUT_PATH}\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
+            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
