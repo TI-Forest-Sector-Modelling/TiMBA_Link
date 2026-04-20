@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
-from linking_pipeline.parameters.defines import Constants, ProductStructures
+from linking_pipeline.parameters.defines import Constants, ProductStructures, VarNames
 from linking_pipeline.parameters.paths import (TIMBA_INPUT_PATH, AGGREGATION_OUTPUT_PATH, COUNTRY_CONCORDANCE_TIMBA)
 
 
@@ -925,17 +925,23 @@ class AggregateTiMBAResults(object):
         self.growth_io_data.to_excel(writer_io_data, sheet_name='rel_io_data', index=False)
         writer_io_data.save()
 
-    def main_aggregation_pipeline(self, input_timba, domains_to_aggregate: list):
+    def main_aggregation_pipeline(self, aggregation_parameters):
+        """
+        Main aggregation pipeline scaling up TiMBA's country and product data to the linked CGE's spatial and sectoral
+        resolution using CGE-specific concordance tables.
+        :param aggregation_parameters: Dict holding all parameters relevant for the aggregation pipeline
+        :return:
+        """
         Pipeline_Agg = AggregateTiMBAResults(
             current_scenario=self.current_scenario,
-            input_path_timba=input_timba,
+            input_path_timba=aggregation_parameters[VarNames.INPUT_TIMBA.value],
             link_typ=self.link_typ,  # Alternatives: 'continuous', 'end_point'
             linked_CGE=self.linked_CGE,  # Alternatives: 'DART-BIO', 'MAGNET'
             project=self.project  # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
             # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
             )
 
-        if 'production' in domains_to_aggregate:
+        if 'production' in aggregation_parameters[VarNames.DOMAINS_TO_AGGREGATE.value]:
             (Pipeline_Agg.agg_production_data,
              Pipeline_Agg.production_data) = Pipeline_Agg.aggregate_production_data(intermediate_aggregation=False)
             Pipeline_Agg.agg_price_data = Pipeline_Agg.agg_price_data()
@@ -985,7 +991,7 @@ class AggregateTiMBAResults(object):
 
             Pipeline_Agg.generate_output_file_production(gams_readin_sheet=True)
 
-        if 'forest' in domains_to_aggregate:
+        if 'forest' in aggregation_parameters[VarNames.DOMAINS_TO_AGGREGATE.value]:
             Pipeline_Agg.agg_forest_stock, Pipeline_Agg.agg_forest_area = Pipeline_Agg.agg_forest_data()
             Pipeline_Agg.agg_harvest_data = Pipeline_Agg.agg_harvest_data()
             Pipeline_Agg.agg_harvest_intensity = Pipeline_Agg.calc_harvest_intensity()
@@ -1031,7 +1037,7 @@ class AggregateTiMBAResults(object):
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.generate_output_file_forest(gams_readin_sheet=True)
 
-        if 'carbon' in domains_to_aggregate:
+        if 'carbon' in aggregation_parameters[VarNames.DOMAINS_TO_AGGREGATE.value]:
             Pipeline_Agg.agg_carbon_biomass, Pipeline_Agg.agg_carbon_hwp = Pipeline_Agg.agg_carbon_data()
             Pipeline_Agg.agg_carbon_biomass = Pipeline_Agg.reformate_timba_data(
                 target_data=Pipeline_Agg.agg_carbon_biomass,
@@ -1055,7 +1061,7 @@ class AggregateTiMBAResults(object):
                 link_type=Pipeline_Agg.link_typ)
             Pipeline_Agg.generate_output_file_carbon(gams_readin_sheet=True)
 
-        if 'io' in domains_to_aggregate:
+        if 'io' in aggregation_parameters[VarNames.DOMAINS_TO_AGGREGATE.value]:
 
             Pipeline_Agg.io_data = Pipeline_Agg.process_io_data()
             Pipeline_Agg.io_data_frs_lum = Pipeline_Agg.calc_io_frs_lum(weighted_io=True)

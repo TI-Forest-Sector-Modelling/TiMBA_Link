@@ -14,7 +14,7 @@ from linking_pipeline.parameters.REGEX_patterns import PERIOD_PATTERN
 from openpyxl import load_workbook
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
-from linking_pipeline.parameters.defines import Constants, ProductStructures
+from linking_pipeline.parameters.defines import Constants, ProductStructures, VarNames
 
 
 class DisaggregateCGEResults(object):
@@ -738,44 +738,43 @@ class DisaggregateCGEResults(object):
                                                         target_parameter=self.disagg_forest_data,
                                                         link_typ=self.link_typ)
 
-    def main_disaggregation_pipeline(self, input_timba_to_update, input_gdp_CGE, input_forest_CGE, linked_var, updated_file):
+    def main_disaggregation_pipeline(self, disaggregation_parameters):
         """
         Main disaggregation pipeline scaling down geographical regions of the linked CGE to TiMBA's spatial resolution
         using country-specific weights calculated based on world bank data (for GDP and GDP per capita) and forest
         resource assessment data (for forest area).
-        :param input_timba_to_update: TiMBA input file to be updated with CGE data
-        :param input_gdp_CGE: GDP data of linked CGE
-        :param input_forest_CGE: Forest data of linked CGE
-        :param linked_var: Linked variables from the CGE
-        :param updated_file: File format that is updated
-
+        :param disaggregation_parameters: Dict holding all parameters relevant for the disaggregation pipeline
         """
         Pipeline_Disagg = DisaggregateCGEResults(
             current_scenario=self.current_scenario,
-            input_gdp_CGE=input_gdp_CGE,
-            input_world=input_timba_to_update,
-            input_forest_CGE=input_forest_CGE,
+            input_gdp_CGE=disaggregation_parameters[VarNames.INPUT_GDP_CGE.value],
+            input_world=disaggregation_parameters[VarNames.INPUT_TIMBA_TO_UPDATE.value],
+            input_forest_CGE=disaggregation_parameters[VarNames.INPUT_FOREST_CGE.value],
             link_typ=self.link_typ,
             linked_CGE=self.linked_CGE,
-            linked_var=linked_var,
+            linked_var=disaggregation_parameters[VarNames.LINKED_VAR.value],
             project=self.project,
-            updated_file=updated_file
+            updated_file=disaggregation_parameters[VarNames.UPDATED_FILE.value]
         )
 
         DisaggregateCGEResults.readin_help_data(Pipeline_Disagg)
 
-        if ('gdp' in linked_var) or ('gdp_cap' in linked_var):
+        if ('gdp' in disaggregation_parameters[VarNames.LINKED_VAR.value]) or (
+                'gdp_cap' in disaggregation_parameters[VarNames.LINKED_VAR.value]):
             Pipeline_Disagg.gdp_disaggregation_pipeline()
 
-        if 'forest_area' in linked_var:
+        if 'forest_area' in disaggregation_parameters[VarNames.LINKED_VAR.value]:
             Pipeline_Disagg.forest_disaggregation_pipeline(split_forest_type=False,
                                                            fra_splitting=False)
 
-        if ('gdp' not in linked_var) or ('gdp_cap' not in linked_var) or ('forest_area' not in linked_var):
+        if ('gdp' not in disaggregation_parameters[VarNames.LINKED_VAR.value]) or (
+                'gdp_cap' not in disaggregation_parameters[VarNames.LINKED_VAR.value]) or (
+                'forest_area' not in disaggregation_parameters[VarNames.LINKED_VAR.value]):
             Pipeline_Disagg.Logger.info(f'Disaggregation for {self.linked_CGE} is yet not implemented.')
 
-        Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange(updated_domains=linked_var,
-                                                                           updated_file=updated_file)
+        Pipeline_Disagg.new_exogChange = Pipeline_Disagg.update_exogChange(
+            updated_domains=disaggregation_parameters[VarNames.LINKED_VAR.value],
+            updated_file=disaggregation_parameters[VarNames.UPDATED_FILE.value])
         Pipeline_Disagg.update_world()
 
         Pipeline_Disagg.Logger.info(f'This link is unbreakable.')
