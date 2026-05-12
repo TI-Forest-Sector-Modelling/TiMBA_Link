@@ -1,3 +1,4 @@
+![TiMBA_Link](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/TiMBA_Link_logo_v1.png?raw=true)
 
 # TiMBA linking pipeline
 
