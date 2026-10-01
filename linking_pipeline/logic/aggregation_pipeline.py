@@ -95,21 +95,42 @@ class AggregateTiMBAResults(object):
         :return: Aggregated production data to CGE level (region and sector)
         """
         self.Logger.info(f"Aggregate TiMBA data for production to {self.linked_CGE} (region and sector).")
-        timba_data = self.timba_data['data_periods']
-        # TODO consider to include trade in calculations
+        timba_data = self.timba_data['data_periods'].copy()
+        timba_data_forest = self.timba_data['Forest'][['RegionCode', 'Period', 'FuelwoodForest']].copy()
+        timba_data_commodities = pd.DataFrame(timba_data['CommodityCode'].unique(), columns=['CommodityCode'])
+        timba_data_regions = pd.DataFrame(timba_data['RegionCode'].unique(), columns=['RegionCode'])
+        timba_data_regions_commodities = timba_data_regions.join(timba_data_commodities, how="cross")
+        timba_data_regions_commodities = timba_data_regions_commodities[
+            timba_data_regions_commodities['RegionCode'] != 'zy'].reset_index(drop=True)
+
+        timba_data_forest['CommodityCode'] = np.nan
+        timba_data_forest_new = pd.DataFrame()
+        for period in timba_data_forest['Period'].unique():
+            timba_data_forest_tmp = timba_data_forest.copy()
+            timba_data_forest_tmp = timba_data_forest_tmp[
+                timba_data_forest_tmp['Period'] == period].reset_index(drop=True)
+            timba_data_forest_tmp.loc[:,'CommodityCode'] = timba_data_regions_commodities.loc[:, 'CommodityCode']
+            timba_data_forest_new = pd.concat([timba_data_forest_new, timba_data_forest_tmp]).reset_index(drop=True)
+
+        timba_data_forest = timba_data_forest_new.sort_values(by=["RegionCode", "CommodityCode"]).reset_index(drop=True)
+        timba_data_no_fuelw_idx = timba_data_forest[timba_data_forest['CommodityCode'] != 80].index
+        timba_data_forest.loc[timba_data_no_fuelw_idx, 'FuelwoodForest'] = 1
+
         production_data = timba_data[(timba_data['domain'] == 'Supply') |
                                      (timba_data['domain'] == 'ManufactureCost')]
         production_data = production_data.groupby(["RegionCode", "CommodityCode", "year"]
                                                   )["quantity"].sum().reset_index()
+        production_data['quantity'] = production_data['quantity'] * timba_data_forest['FuelwoodForest']
+        production_data['quantity'] = production_data['quantity'].fillna(0)
 
-        export_data = timba_data[timba_data['domain'] == 'TransportationExport']
+        """export_data = timba_data[timba_data['domain'] == 'TransportationExport']
         import_data = timba_data[timba_data['domain'] == 'TransportationImport']
         export_data = export_data.sort_values(by=['RegionCode', 'CommodityCode', 'year'],
                                               ascending=True).reset_index(drop=True)
         import_data = import_data.sort_values(by=['RegionCode', 'CommodityCode', 'year'],
                                               ascending=True).reset_index(drop=True)
 
-        production_data['quantity'] = production_data['quantity'] + import_data['quantity'] - export_data['quantity']
+        production_data['quantity'] = production_data['quantity'] + import_data['quantity'] - export_data['quantity']"""
 
         production_data = production_data.merge(self.region_key, left_on="RegionCode", right_on="GFPM_CountryCode",
                                                 how="left").dropna()
