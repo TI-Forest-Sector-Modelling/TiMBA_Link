@@ -1,0 +1,15 @@
+recursive-include linking_pipeline/data/input *
+
+global-exclude *.py[cod]
+
+global-exclude *.log
+
+include timba_link_logo_v1.png
+
+include README.md
+
+include COPYING
+
+include CITATION.cff
+
+include COPYRIGHT
