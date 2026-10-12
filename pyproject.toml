@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools==75.2.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "timba_link"
+version = "1.0"
+authors = [{name = "Tomke Honkomp", email = "wf-timba@thuenen.de"}]
+description = "TiMBA_Link is an add-on application to link TiMBA, a partial equilibrium model of the global forest sector with other models, in particular conputable general equilibrium models"
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
+keywords = ["timba", "add-on application", "model linkage", "thuenen institute", "economics of forests", "research"]
+
+requires-python = ">=3.9,<3.12"
+dependencies = [
+    "openpyxl==3.1.5",
+    "xlsxwriter==3.2.3",
+    "dataclasses==0.6",
+    "DateTime==5.5",
+    "numpy==1.26.4",
+    "pandas==1.5.3",
+    "pathlib==1.0.1",
+    "typing==3.7.4.3",
+    "pytimba==1.4.2"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering"
+]
+
+[project.urls]
+Homepage = "https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link"
+Documentation = "https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/README.md"
+Repository = "https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link"
+Issues = "https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/issues"
+
+[project.scripts]
+timba_link = "linking_pipeline.cli.cli:cli"
+
+[tool.setuptools]
+license-files = ["COPYING"]
+include-package-data = true
+zip-safe = true
+
+[tool.setuptools.packages]
+find = {namespaces = false}
+
+[tool.setuptools.package-data]
+"*" = ["README.md", "COPYING", "COPYRIGHT", "CITATION.cff", "timba_link_logo_v1.png"]
+
+[tool.coverage.run]
+branch = true
+source = ["linking_pipeline"]
+
+[tool.coverage.report]
+fail_under = 5
+show_missing = true
+skip_covered = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[project.optional-dependencies]
+dev = [
+    "coverage>=7,<8",
+]

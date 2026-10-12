@@ -29,7 +29,7 @@ def get_logger(user_path: Union[str, Path, None], aggregation_flag: bool):
     if not os.path.exists(filepath):
         os.makedirs(Path(filepath).parent, exist_ok=True)
 
-    Logger = logging.getLogger("TiMBA linking pipeline")
+    Logger = logging.getLogger("TiMBA_Link pipeline")
     Logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s %(lineno)s: %(message)s',

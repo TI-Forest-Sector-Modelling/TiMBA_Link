@@ -8,6 +8,7 @@ project_parameters = {
     VarNames.ITER_NUM.value: "iterx",
     VarNames.AGGREGATION_SWITCH.value: False,
     VarNames.DISAGGREGATION_SWITCH.value: True,
+    VarNames.RUN_TIMBA_SWITCH.value: False,
     VarNames.CALIBRATION_SWITCH.value: False
 }
 
@@ -22,6 +23,10 @@ disaggregation_parameters = {
     VarNames.INPUT_FOREST_CGE.value: "default_cge_FOREST",
     VarNames.LINKED_VAR.value: ["gdp", "gdp_cap", "forest_area"],
     VarNames.UPDATED_FILE.value: "xlsx"
+}
+
+timba_parameters = {
+
 }
 
 calibration_parameters = {

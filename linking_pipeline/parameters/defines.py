@@ -34,15 +34,17 @@ class ProductStructures(Enum):
                           "GTAP-Sector": ["FRS", "LUM", "BIOE", "FRS", "FRS", "LUM", "LUM", "LUM", "LUM", "PPP", "PPP",
                                           "PPP", "PPP", "PPP", "PPP", "PPP"]}
 
+
 class VarNames(Enum):
     # Project parameters
     CURRENT_SC = "current_scenario"
     LINK_TYPE = "link_type"
     LINKED_CGE = "linked_CGE"
     PROJECT = "project"
-    ITER_NUM = "iter"
+    ITER_NUM = "iter_num"
     AGGREGATION_SWITCH = "aggregation_switch"
     DISAGGREGATION_SWITCH = "disaggregation_switch"
+    RUN_TIMBA_SWITCH = "run_timba_switch"
     CALIBRATION_SWITCH = "calibration_switch"
 
     # Aggregation parameters
