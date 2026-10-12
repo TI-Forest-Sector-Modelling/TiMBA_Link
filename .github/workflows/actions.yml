@@ -50,7 +50,6 @@ jobs:
 
   integration-tests:
     name: Integration tests - Ubuntu - Python 3.11
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
