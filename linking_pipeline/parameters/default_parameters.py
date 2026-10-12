@@ -8,6 +8,7 @@ project_parameters = {
     VarNames.ITER_NUM.value: "iterx",
     VarNames.AGGREGATION_SWITCH.value: False,
     VarNames.DISAGGREGATION_SWITCH.value: True,
+    VarNames.RUN_TIMBA_SWITCH.value: False,
     VarNames.CALIBRATION_SWITCH.value: False
 }
 
