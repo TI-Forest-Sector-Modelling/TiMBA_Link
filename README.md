@@ -1,6 +1,6 @@
 ![TiMBA_Link](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/TiMBA_Link_logo_v1.png?raw=true)
 
-# TiMBA linking pipeline
+# TiMBA_Link
 
 ![GitHub Release](https://img.shields.io/github/v/release/TI-Forest-Sector-Modelling/TiMBA_Link)
 [![License](https://img.shields.io/github/license/TI-Forest-Sector-Modelling/TiMBA_Link)](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/COPYING)
