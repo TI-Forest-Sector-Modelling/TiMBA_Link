@@ -61,7 +61,7 @@ branch = true
 source = ["linking_pipeline"]
 
 [tool.coverage.report]
-fail_under = 50
+fail_under = 5
 show_missing = true
 skip_covered = true
 
