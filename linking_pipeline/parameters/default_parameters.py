@@ -24,6 +24,10 @@ disaggregation_parameters = {
     VarNames.UPDATED_FILE.value: "xlsx"
 }
 
+timba_parameters = {
+
+}
+
 calibration_parameters = {
 
 }

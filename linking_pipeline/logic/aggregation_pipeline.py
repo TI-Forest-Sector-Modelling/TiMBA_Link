@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 import pickle
 import gzip
-import os
-from pathlib import Path
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures, VarNames
@@ -36,7 +34,7 @@ class AggregateTiMBAResults(object):
         :return pd.DataFrame: TiMBA data
         """
         self.Logger.info(f"Read in TiMBA results {self.input_path_timba}.")
-        src_path = f'{TIMBA_INPUT_PATH}\\{self.input_path_timba}.pkl'
+        src_path = TIMBA_INPUT_PATH / f'{self.input_path_timba}.pkl'
 
         try:
             with open(src_path, "rb") as pkl_file:
@@ -752,7 +750,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated production related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
-            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
+            AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -815,7 +813,7 @@ class AggregateTiMBAResults(object):
 
         # Excel-Writer
         writer_forest = pd.ExcelWriter(
-            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
+            AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -868,7 +866,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated carbon related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_carbon_data = pd.ExcelWriter(
-            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
+            AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
@@ -913,7 +911,7 @@ class AggregateTiMBAResults(object):
         self.Logger.info(f'Save aggregated io related TiMBA data in Excel-file.')
         # Excel-Writer
         writer_io_data = pd.ExcelWriter(
-            f'{AGGREGATION_OUTPUT_PATH}\\{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
+            AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
             engine='xlsxwriter')
 
         if gams_readin_sheet:
