@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 import gzip
 import datetime as dt
+from pathlib import Path
 from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures, VarNames
 from linking_pipeline.parameters.paths import (TIMBA_INPUT_PATH, AGGREGATION_OUTPUT_PATH, COUNTRY_CONCORDANCE_TIMBA)
@@ -748,6 +749,7 @@ class AggregateTiMBAResults(object):
         Generate Excel-Output-file storing all aggregated production related GFPMpt data and calculated growth rates.
         """
         self.Logger.info(f'Save aggregated production related TiMBA data in Excel-file.')
+        Path(AGGREGATION_OUTPUT_PATH).mkdir(parents=True, exist_ok=True)
         # Excel-Writer
         writer_agg_data = pd.ExcelWriter(
             AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_production_data_{self.current_scenario}.xlsx',
@@ -810,7 +812,7 @@ class AggregateTiMBAResults(object):
         Generate Excel-Output-file storing all aggregated forest related TiMBA data and calculated growth rates.
         """
         self.Logger.info(f'Save aggregated forest related TiMBA data in Excel-file.')
-
+        Path(AGGREGATION_OUTPUT_PATH).mkdir(parents=True, exist_ok=True)
         # Excel-Writer
         writer_forest = pd.ExcelWriter(
             AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_forest_data_{self.current_scenario}.xlsx',
@@ -864,6 +866,7 @@ class AggregateTiMBAResults(object):
         Generate Excel-Output-file storing all aggregated carbon related TiMBA data and calculated growth rates.
         """
         self.Logger.info(f'Save aggregated carbon related TiMBA data in Excel-file.')
+        Path(AGGREGATION_OUTPUT_PATH).mkdir(parents=True, exist_ok=True)
         # Excel-Writer
         writer_carbon_data = pd.ExcelWriter(
             AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_carbon_data_{self.current_scenario}.xlsx',
@@ -909,6 +912,7 @@ class AggregateTiMBAResults(object):
         Generate Excel-Output-file storing all aggregated IO-related TiMBA data and calculated growth rates.
         """
         self.Logger.info(f'Save aggregated io related TiMBA data in Excel-file.')
+        Path(AGGREGATION_OUTPUT_PATH).mkdir(parents=True, exist_ok=True)
         # Excel-Writer
         writer_io_data = pd.ExcelWriter(
             AGGREGATION_OUTPUT_PATH / f'{self.current_dt}_agg_io_data_{self.current_scenario}.xlsx',
