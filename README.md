@@ -1,7 +1,7 @@
-![TiMBA_Link](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/TiMBA_Link_logo_v1.png?raw=true)
+![TiMBA_Link](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/timba_link_logo_v1.png?raw=true)
 
 # TiMBA_Link
-
+[![CI - Test](https://img.shields.io/github/actions/workflow/status/TI-Forest-Sector-Modelling/TiMBA_Link/actions.yml?branch=main&label=CI%20-%20Test)](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/actions/workflows/actions.yml)
 ![GitHub Release](https://img.shields.io/github/v/release/TI-Forest-Sector-Modelling/TiMBA_Link)
 [![License](https://img.shields.io/github/license/TI-Forest-Sector-Modelling/TiMBA_Link)](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/COPYING)
 
