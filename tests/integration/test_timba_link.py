@@ -32,12 +32,10 @@ class TestTiMBALinkIntegration(unittest.TestCase):
                 VarNames.ITER_NUM.value
             ],
             VarNames.AGGREGATION_SWITCH.value: True,
-
             VarNames.DISAGGREGATION_SWITCH.value: True,
-            VarNames.RUN_TIMBA_SWITCH.value: project_parameters[
-                VarNames.RUN_TIMBA_SWITCH.value
-            ],  # TODO change to True when link to TiMBA is finalized
+            VarNames.RUN_TIMBA_SWITCH.value: True,
             VarNames.CALIBRATION_SWITCH.value: False,
+            VarNames.DETAILED_LOGGER.value: False
         }
 
     def test_run_timba_link(self):

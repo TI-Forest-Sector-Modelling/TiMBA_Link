@@ -33,5 +33,15 @@ COUNTRY_CONCORDANCE_WB_OECD = SUPPORTIVE_INPUT_PATH / "worldbank_oecd_countries.
 AGGREGATION_OUTPUT_PATH = OUTPUT_FOLDER / "aggregation"
 if project_parameters[VarNames.RUN_TIMBA_SWITCH.value]:
     DISAGGREGATION_OUTPUT_PATH = DATA_FOLDER / "TiMBA" / "data" / "input" / "01_Input_Files" # Based on TiMBA package default folder structure
+    TIMBA_INPUT_FILES = DISAGGREGATION_OUTPUT_PATH
 else:
     DISAGGREGATION_OUTPUT_PATH = OUTPUT_FOLDER / "disaggregation"
+
+# TiMBA data (additional paths)
+GIT_USER = "TI-Forest-Sector-Modelling"
+GIT_REPO = "TiMBA_Additional_Information"
+GIT_BRANCH = "main"
+GIT_FOLDER = r"Input_Data/default_scenario/02_Additional_Information"
+TIMBA_ADD_INFO = DATA_FOLDER / "TiMBA" / "data" / "input" / "02_Additional_Information"
+TIMBA_SERIALIZATION = DATA_FOLDER / "TiMBA" / "data" / "input" / "03_Serialization"
+

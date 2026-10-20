@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 import datetime as dt
 from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures, VarNames
+from linking_pipeline.parameters.default_parameters import disaggregation_parameters
 
 
 class DisaggregateCGEResults(object):
@@ -26,8 +27,11 @@ class DisaggregateCGEResults(object):
                  linked_CGE: str,
                  linked_var: list,
                  project: str,
-                 updated_file: str
+                 updated_file: str,
+                 detailed_logger: bool,
+                 iter_num: int,
                  ):
+        DisaggregateCGEResults.header_disaggregation(self, detailed_logger=detailed_logger)
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
         self.current_scenario = current_scenario
         self.current_dt = dt.datetime.now().strftime("%Y%m%d")
@@ -39,6 +43,7 @@ class DisaggregateCGEResults(object):
         self.linked_var = linked_var
         self.project = project
         self.updated_file = updated_file
+        self.iter_num = iter_num
 
         self.region_key = None
         self.region_key_timba = None
@@ -67,6 +72,22 @@ class DisaggregateCGEResults(object):
         self.growth_rate_forest = None
         self.new_exogChange = None
         self.cge_data = DisaggregateCGEResults.readin_model_data(self, updated_file)
+
+    def header_disaggregation(self, detailed_logger):
+        """
+        Header of disaggregation pipeline
+        :param detailed_logger: Flag controling if parameter details are provided
+        """
+        print("\n")
+        print("===============================")
+        print("=== Disaggregation-Pipeline ===")
+        print("===============================")
+        if detailed_logger:
+            print("========= Parameters =========")
+            print("==============================")
+            print(f"Disaggregated Domains:{disaggregation_parameters[VarNames.LINKED_VAR.value]}")
+            print("==============================")
+        print("\n")
 
     def readin_model_data(self, updated_file):
         """
@@ -681,11 +702,11 @@ class DisaggregateCGEResults(object):
 
     def update_world(self):
         self.Logger.info(f'Update {self.project} World with new ExogChange')
-        time_stamp = dt.datetime.now().strftime("%Y%m%d")
+        time_stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
 
         separator = '_'
         updated_world_name = self.input_world.split(separator)[1:]
-        updated_world_name = f'{time_stamp}_Updated_{separator.join(updated_world_name)}'
+        updated_world_name = f'{time_stamp}_Updated_{separator.join(updated_world_name)}_it{self.iter_num}'
 
         if not os.path.exists(DISAGGREGATION_OUTPUT_PATH):
             os.makedirs(DISAGGREGATION_OUTPUT_PATH, exist_ok=True)
@@ -756,7 +777,9 @@ class DisaggregateCGEResults(object):
             linked_CGE=self.linked_CGE,
             linked_var=disaggregation_parameters[VarNames.LINKED_VAR.value],
             project=self.project,
-            updated_file=disaggregation_parameters[VarNames.UPDATED_FILE.value]
+            updated_file=disaggregation_parameters[VarNames.UPDATED_FILE.value],
+            detailed_logger=self.detailed_logger,
+            iter_num=self.iter_num
         )
 
         DisaggregateCGEResults.readin_help_data(Pipeline_Disagg)

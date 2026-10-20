@@ -7,7 +7,9 @@ import datetime as dt
 from pathlib import Path
 from linking_pipeline.helper_functions.base_logger import get_logger
 from linking_pipeline.parameters.defines import Constants, ProductStructures, VarNames
-from linking_pipeline.parameters.paths import (TIMBA_INPUT_PATH, AGGREGATION_OUTPUT_PATH, COUNTRY_CONCORDANCE_TIMBA)
+from linking_pipeline.parameters.paths import (TIMBA_INPUT_PATH, AGGREGATION_OUTPUT_PATH, COUNTRY_CONCORDANCE_TIMBA,
+                                               DATA_FOLDER)
+from linking_pipeline.parameters.default_parameters import aggregation_parameters
 
 
 class AggregateTiMBAResults(object):
@@ -16,26 +18,63 @@ class AggregateTiMBAResults(object):
                  input_path_timba: str,
                  link_typ: str,
                  linked_CGE: str,
-                 project: str
+                 project: str,
+                 run_timba_switch: bool,
+                 detailed_logger: bool
                  ):
+        AggregateTiMBAResults.header_aggregation(self, detailed_logger=detailed_logger)
         self.Logger = get_logger(user_path=None, aggregation_flag=True)
         self.current_scenario = current_scenario
-        self.current_dt = dt.datetime.now().strftime("%Y%m%d")
+        self.current_dt = dt.datetime.now().strftime("%Y%m%d%H%M%S")
         self.input_path_timba = input_path_timba
         self.link_typ = link_typ
         self.linked_CGE = linked_CGE
         self.project = project
-        self.timba_data = AggregateTiMBAResults.readin_model_data(self)
+        self.run_timba_switch = run_timba_switch
+        if self.run_timba_switch:
+            self.timba_data, self.current_scenario = AggregateTiMBAResults.readin_model_data(self)
+        else:
+            self.timba_data = AggregateTiMBAResults.readin_model_data(self)
         (self.region_key, self.commodity_key, self.exogenous_change_structure, self.start_year, self.end_year
          ) = AggregateTiMBAResults.readin_help_data(self)
+
+    def header_aggregation(self, detailed_logger):
+        """
+        Header of aggregation pipeline
+        :param detailed_logger: Flag controling if parameter details are provided
+        """
+        print("\n")
+        print("===============================")
+        print("==== Aggregation-Pipeline =====")
+        print("===============================")
+        if detailed_logger:
+            print("========= Parameters =========")
+            print("==============================")
+            print(f"Aggregated Domains:{aggregation_parameters[VarNames.DOMAINS_TO_AGGREGATE.value]}")
+            print("==============================")
+        print("\n")
 
     def readin_model_data(self):
         """
         Read in TiMBA data for production (ManufactureCost and Supply)
         :return pd.DataFrame: TiMBA data
         """
-        self.Logger.info(f"Read in TiMBA results {self.input_path_timba}.")
-        src_path = TIMBA_INPUT_PATH / f'{self.input_path_timba}.pkl'
+        if self.run_timba_switch:
+            INPUT_FILES = DATA_FOLDER / "output" / "disaggregation"
+            INPUT_FILE = max(
+                (f for f in Path(INPUT_FILES).iterdir() if f.is_file()),
+                key=lambda f: f.stat().st_mtime,
+                default=None
+            )
+            INPUT_FILE = INPUT_FILE.stem if INPUT_FILE else None
+
+            PKL_FILE = next((f.name for f in Path(TIMBA_INPUT_PATH).iterdir() if INPUT_FILE in f.name), None)
+            src_path = TIMBA_INPUT_PATH / PKL_FILE
+            self.Logger.info(f"Read in TiMBA results {PKL_FILE}")
+        else:
+            src_path = TIMBA_INPUT_PATH / f'{self.input_path_timba}.pkl'
+            self.Logger.info(f"Read in TiMBA results {self.input_path_timba}.")
+
 
         try:
             with open(src_path, "rb") as pkl_file:
@@ -44,7 +83,11 @@ class AggregateTiMBAResults(object):
             with gzip.open(src_path, "rb") as pkl_file:
                 timba_data = pickle.load(pkl_file)
 
-        return timba_data
+        if self.run_timba_switch:
+            INPUT_FILE = "_".join(INPUT_FILE.split("_")[1:])
+            return timba_data, INPUT_FILE
+        else:
+            return timba_data
 
     def readin_help_data(self):
         """
@@ -959,8 +1002,10 @@ class AggregateTiMBAResults(object):
             input_path_timba=aggregation_parameters[VarNames.INPUT_TIMBA.value],
             link_typ=self.link_typ,  # Alternatives: 'continuous', 'end_point'
             linked_CGE=self.linked_CGE,  # Alternatives: 'DART-BIO', 'MAGNET'
-            project=self.project  # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
+            project=self.project, # Alternatives: 'BioSDG', 'CarbonLeak', 'BEPASO'
+            run_timba_switch=self.run_timba_switch,
             # Note: linked_CGE and project must be harmonized (e.g., DART-BIO + BioSDG)
+            detailed_logger=self.detailed_logger
             )
 
         if 'production' in aggregation_parameters[VarNames.DOMAINS_TO_AGGREGATE.value]:

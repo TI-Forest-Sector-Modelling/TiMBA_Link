@@ -7,4 +7,3 @@ pandas==1.5.3
 pathlib==1.0.1
 typing==3.7.4.3
 pytimba==1.4.2
-# git+https://github.com/TI-Forest-Sector-Modelling/TiMBA.git@v1.0.2

@@ -105,6 +105,7 @@ def timba_link_cli(
         VarNames.DISAGGREGATION_SWITCH.value: disaggregation_switch,
         VarNames.RUN_TIMBA_SWITCH.value: run_timba_switch,
         VarNames.CALIBRATION_SWITCH.value: project_parameters[VarNames.CALIBRATION_SWITCH.value],
+        VarNames.DETAILED_LOGGER.value: project_parameters[VarNames.DETAILED_LOGGER.value]
     }
     timba_link_cli = TiMBALink(project_parameters=project_parameters_cli)
     timba_link_cli.run()

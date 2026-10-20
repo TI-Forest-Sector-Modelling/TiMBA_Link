@@ -46,6 +46,7 @@ class VarNames(Enum):
     DISAGGREGATION_SWITCH = "disaggregation_switch"
     RUN_TIMBA_SWITCH = "run_timba_switch"
     CALIBRATION_SWITCH = "calibration_switch"
+    DETAILED_LOGGER = "detailed_logger"
 
     # Aggregation parameters
     INPUT_TIMBA = "input_timba"
@@ -57,4 +58,7 @@ class VarNames(Enum):
     INPUT_FOREST_CGE = "input_forest_CGE"
     LINKED_VAR = "linked_var"
     UPDATED_FILE = "updated_file"
+
+    # TiMBA paramerts
+    MAX_PERIOD = "max_period"
 

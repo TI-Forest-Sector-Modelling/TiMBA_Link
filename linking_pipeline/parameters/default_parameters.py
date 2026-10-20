@@ -10,6 +10,7 @@ project_parameters = {
     VarNames.DISAGGREGATION_SWITCH.value: True,
     VarNames.RUN_TIMBA_SWITCH.value: False,
     VarNames.CALIBRATION_SWITCH.value: False
+    VarNames.DETAILED_LOGGER.value: True
 }
 
 aggregation_parameters = {
@@ -26,7 +27,7 @@ disaggregation_parameters = {
 }
 
 timba_parameters = {
-
+    VarNames.MAX_PERIOD.value: 10
 }
 
 calibration_parameters = {
