@@ -6,10 +6,9 @@ project_parameters = {
     VarNames.LINKED_CGE.value: "MAGNET",
     VarNames.PROJECT.value: "default_project",
     VarNames.ITER_NUM.value: "iterx",
-    VarNames.AGGREGATION_SWITCH.value: False,
+    VarNames.AGGREGATION_SWITCH.value: True,
     VarNames.DISAGGREGATION_SWITCH.value: True,
-    VarNames.RUN_TIMBA_SWITCH.value: False,
-    VarNames.CALIBRATION_SWITCH.value: False
+    VarNames.RUN_TIMBA_SWITCH.value: True,
     VarNames.CALIBRATION_SWITCH.value: False,
     VarNames.DETAILED_LOGGER.value: True
 }
