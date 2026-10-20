@@ -1,6 +1,6 @@
 # Changelog
 
-## [v1.0] - 2026-10-15
+## [v1.0.0] - 2026-10-20
 ### Added
 - **First release**:
   - Adds all base functions for linking TiMBA to different CGE models
