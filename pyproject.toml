@@ -3,7 +3,7 @@ requires = ["setuptools==75.2.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "timba_link"
+name = "TiMBA-Link"
 version = "1.0"
 authors = [{name = "Tomke Honkomp", email = "wf-timba@thuenen.de"}]
 description = "TiMBA_Link is an add-on application to link TiMBA, a partial equilibrium model of the global forest sector with other models, in particular conputable general equilibrium models"

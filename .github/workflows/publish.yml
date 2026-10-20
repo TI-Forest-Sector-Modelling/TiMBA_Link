@@ -47,7 +47,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/project/timba-link/
+      url: https://pypi.org/project/TiMBA-Link/
 
     permissions:
       id-token: write
