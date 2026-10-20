@@ -4,10 +4,9 @@
 cff-version: 0.0.0
 title: TiMBA_Link
 message: >-
-  TiMBA_Link was developed and written by Tomke Honkomp. Localized input in form of
-  specific data was provided by the authors' collective TI-FSM.
-  TI-FSM is composed by Tomke Honkomp, Christian Morland, Franziska Schier, and
-  Julia Tandetzki.
+  TiMBA_Link was developed and written by Tomke Honkomp. Localized input was provided by the authors' collective TI-FSM,
+  in particular Franziska Schier and Christian Morland. TI-FSM is composed by Tomke Honkomp, Christian Morland, Franziska
+  Schier, and Julia Tandetzki.
 type: software
 authors:
   - given-names: Tomke
@@ -19,7 +18,7 @@ identifiers:
   - type: doi
     value: ''
     description: ''
-repository-code: 'https://github.com/TI-Forest-Sector-Modelling/CGE_linking_pipeline'
+repository-code: 'https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link'
 abstract: |-
   Linking partial equilibrium (PE) models such as TiMBA with other models such as computable general equilibrium (CGE)
   models allows to account for cross-sectoral dynamics which are usually not represented in PE models. By integrating
@@ -34,5 +33,5 @@ keywords:
   - optimization
   - wood markets
 license: AGPL-3.0-or-later
-version: 0.0.0
-date-released: '2025-xx-xx'
+version: 1.0
+date-released: '2026-10-15'
