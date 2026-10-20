@@ -49,9 +49,8 @@ class TestTiMBALinkCLI(unittest.TestCase):
                 VarNames.AGGREGATION_SWITCH.value: False,
                 VarNames.DISAGGREGATION_SWITCH.value: False,
                 VarNames.RUN_TIMBA_SWITCH.value: False,
-                VarNames.CALIBRATION_SWITCH.value: project_parameters[
-                    VarNames.CALIBRATION_SWITCH.value
-                ],
+                VarNames.CALIBRATION_SWITCH.value: project_parameters[VarNames.CALIBRATION_SWITCH.value],
+                VarNames.DETAILED_LOGGER.value: project_parameters[VarNames.DETAILED_LOGGER.value]
             }
 
             mock_timba_link.assert_called_once_with(
