@@ -8,3 +8,4 @@
   - Adds base documentation for TiMBA_Link
   - Adds packaging files for PyPI deployment
   - Adds GitHub actions for continous development and integration
+  - Adds CLI
