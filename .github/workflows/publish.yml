@@ -5,30 +5,30 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: read
-
 jobs:
   build:
-    name: Build Python package
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.9"
 
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install build twine
+          python -m pip install --upgrade setuptools wheel build twine
 
-      - name: Build source distribution and wheel
-        run: python -m build
+      - name: Build package
+        run: python -m build --sdist --wheel
 
       - name: Validate distributions
         run: python -m twine check dist/*
@@ -36,31 +36,29 @@ jobs:
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: python-distributions
+          name: dist
           path: dist/*
           if-no-files-found: error
 
   publish:
-    name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: build
 
     environment:
       name: pypi
-      url: https://pypi.org/project/TiMBA-Link/
+      url: https://pypi.org/project/timba-link/
 
     permissions:
       id-token: write
-      contents: read
 
     steps:
       - name: Download distribution artifacts
         uses: actions/download-artifact@v4
         with:
-          name: python-distributions
+          name: dist
           path: dist/
 
       - name: Publish to PyPI via Trusted Publishing
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e
         with:
           packages-dir: dist/
