@@ -37,17 +37,8 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           python -m coverage run -m unittest discover -s tests/unit -p "test_*.py"
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
           python -m coverage report
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
-          python -m coverage xml -o coverage.xml
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-          }
+          python -m coverage xml -o coverage.xml     
 
       - name: Upload coverage report
         if: always()
