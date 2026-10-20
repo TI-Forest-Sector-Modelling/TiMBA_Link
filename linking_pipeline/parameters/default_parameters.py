@@ -10,6 +10,7 @@ project_parameters = {
     VarNames.DISAGGREGATION_SWITCH.value: True,
     VarNames.RUN_TIMBA_SWITCH.value: False,
     VarNames.CALIBRATION_SWITCH.value: False
+    VarNames.CALIBRATION_SWITCH.value: False,
     VarNames.DETAILED_LOGGER.value: True
 }
 
