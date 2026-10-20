@@ -35,6 +35,11 @@ def get_logger(user_path: Union[str, Path, None], aggregation_flag: bool):
         '%(asctime)s %(levelname)s %(lineno)s: %(message)s',
         '%d.%m.%y %H:%M:%S'
     )
+
+    for handler in Logger.handlers[:]:
+        Logger.removeHandler(handler)
+        handler.close()
+
     handler = logging.FileHandler(filepath, 'a+')
     handler.setFormatter(formatter)
     Logger.addHandler(handler)
