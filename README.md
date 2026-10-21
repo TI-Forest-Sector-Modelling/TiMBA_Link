@@ -4,7 +4,7 @@
 [![CI - Test](https://img.shields.io/github/actions/workflow/status/TI-Forest-Sector-Modelling/TiMBA_Link/actions.yml?branch=main&label=CI%20-%20Test)](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/actions/workflows/actions.yml)
 ![GitHub Release](https://img.shields.io/github/v/release/TI-Forest-Sector-Modelling/TiMBA_Link)
 [![License](https://img.shields.io/github/license/TI-Forest-Sector-Modelling/TiMBA_Link)](https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link/blob/main/COPYING)
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23500778.svg)](https://doi.org/10.5281/zenodo.23500778)
 --------------
 
 <!-- TOC -->
@@ -61,7 +61,7 @@ These developments are planned within ongoing and future research projects (see 
 We are glad that you are using TiMBA_Link in your research. Please cite the software in any related publications (articles,
 working papers, presentations, etc.) as follows:
 
-Honkomp (2026) TiMBA_Link v1.0.0
+Honkomp, T. (2026). [TiMBA_Link](https://doi.org/10.5281/zenodo.23500778)
 
 ## Installation
 The project can be directly be installed via **GitHub** using the following steps. An installation via **PyPI** will be made available as soon as possible.
