@@ -11,7 +11,10 @@
 - [Description](#description)
 - [Citation](#citation)
 - [Installation](#installation)
-- [Usage](#usage)
+  - [Installation from PyPI](#installation-from-pypi)
+  - [Installation from GitHub](#installation-from-github)
+- [Use TiMBA_Link](#use-timba_link)
+  - [CLI](#cli)
 - [Data processing](#data-processing)
   - [Data aggregation](#data-aggregation)
   - [Data disaggregation](#data-disaggregation) 
@@ -64,43 +67,87 @@ working papers, presentations, etc.) as follows:
 Honkomp, T. (2026). [TiMBA_Link](https://doi.org/10.5281/zenodo.23500778)
 
 ## Installation
-The project can be directly be installed via **GitHub** using the following steps. An installation via **PyPI** will be made available as soon as possible.
+The project can be directly be installed via **PyPI** or **GitHub** using the following steps.
 
+
+### Installation from PyPI
+TiMBA_Link can be downloaded via PyPI using:
+```bash
+pip install timba-link
+```
+You can use TiMBA_Link in your own software:
+```Python
+from linking_pipeline.main import TiMBALink
+from linking_pipeline.parameters.default_parameters import project_parameters
+
+test_link = TiMBALink(project_parameters=project_parameters)
+test_link.run()
+```
+
+### Installation from GitHub
 1. Clone the repository
 Begin by cloning the repository to your local machine using the following command: 
-    >git clone https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link.git
-   > 
+ ```bash
+git clone https://github.com/TI-Forest-Sector-Modelling/TiMBA_Link.git
+```
 2. Switch to the project's directory  
 Navigate into the project's project folder on your local machine.
-   >cd TIMBA_Link
-   >
+ ```bash
+cd TIMBA_Link
+```
 3. Create a virtual environment  
 It is recommended to set up a virtual environment for TiMBA_Link to manage dependencies. The package is tested for 
    Python versions up to 3.11. With a newer Python version, we can not guarantee the full functionality of the package.
    Select the correct Python interpreter.   
-   Show installed versions: 
-   >py -0  
-   >
+   Show installed versions:
+```bash
+py -0  
+```
    - If you have installed multiple versions of Python, activate the correct version using the py-Launcher.
-   >py -3.11 -m venv venv 
-   > 
+```bash
+py -3.11 -m venv venv 
+```
    - If you are using only a single version of Python on your computer:
-   >python -m venv venv
-   >
+```bash
+python -m venv venv
+```
 4. Activate the virtual environment  
-Enable the virtual environment to isolate the project's dependencies. 
-   >venv\Scripts\activate
+Enable the virtual environment to isolate the project's dependencies.
+```bash
+venv\Scripts\activate
+```
+5. Install the project in the editable mode
+```bash
+pip install -e .
+```
+If the following error occurs: "ERROR: File "setup.py" or "setup.cfg" not found."
+you might need to update the pip version you use with:
+```bash
+python.exe -m pip install --upgrade pip
+```
+## Use TiMBA_Link
+TiMBA_Link automates the bidirectional soft linkage between TiMBA and the selected CGE model. Users can interact with the pipeline using the CLI or
+by changing parameters in `default_parameters.py` and runing the project with IDE.
 
-5. Install the project in the editable mode  
-   >pip install -e .
+### CLI
+The main entry point of TiMBA_Link is the CLI. Start TiMBA_Link using:
 
-    If the following error occurs: "ERROR: File "setup.py" or "setup.cfg" not found."
-    you might need to update the pip version you use with: 
-    >python.exe -m pip install --upgrade pip
+```bash
+timba_link run
+```
 
-## Usage
-TiMBA_Link automates the bidirectional soft linkage between TiMBA and the selected CGE model. Users can interact with the pipeline
-by changing parameters in `default_parameters.py`. An CLI-based entry point will be made available in the future.
+To get an overview of parameter options available via the CLI use:
+
+```bash
+timba_link run --help
+```
+
+Following CLI command runs TiMBA_Link with activated pipelines for disaggregation, aggregation, and TiMBA for the scenario "test":
+
+```bash
+timba_link run -SC test -AS True -DS True -TS True
+```
+
 Reflecting the pipeline structure, TiMBA_Link parameters are organized in three dictionaries:
 
 - **project_parameters**:
