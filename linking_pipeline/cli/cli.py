@@ -44,7 +44,7 @@ def cli():
 )
 @click.option(
     '-IN', '--iter_num',
-    default=project_parameters[VarNames.ITER_NUM.value],
+    default=0,
     show_default=True,
     required=True,
     type=int,
@@ -108,5 +108,6 @@ def timba_link_cli(
         VarNames.DETAILED_LOGGER.value: project_parameters[VarNames.DETAILED_LOGGER.value]
     }
     timba_link_cli = TiMBALink(project_parameters=project_parameters_cli)
+    timba_link_cli.header()
     timba_link_cli.run()
 
