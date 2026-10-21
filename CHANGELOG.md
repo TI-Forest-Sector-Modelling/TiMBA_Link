@@ -1,5 +1,10 @@
 # Changelog
 
+## [v1.0.5] - 2026-10-21
+### Added 
+- Fix CLI bug due to circular imports
+- Update README
+
 ## [v1.0.0] - 2026-10-20
 ### Added
 - **First release**:
