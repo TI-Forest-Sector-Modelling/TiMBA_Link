@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "timba-link"
-version = "1.0.4"
+version = "1.0.5"
 authors = [{name = "Tomke Honkomp", email = "wf-timba@thuenen.de"}]
 description = "An add-on to link TiMBA with CGE models"
 readme = "README.md"
